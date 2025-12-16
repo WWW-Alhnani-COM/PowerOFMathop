@@ -1,0 +1,58 @@
+/* styles/animations.css */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes sparkle {
+  0% { opacity: 0; transform: scale(0.4); }
+  60% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+@keyframes bounceSoft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+.animate-float { animation: float 6s ease-in-out infinite; }
+.animate-sparkle { animation: sparkle 1.8s ease-out infinite; }
+.animate-bounce-soft { animation: bounceSoft 2s ease-in-out infinite; }
+.animate-wiggle { animation: wiggle 1.5s ease-in-out infinite; }
+
+.ghost-sparkle {
+  width: 10px; height: 10px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,1), rgba(255,171,64,0.4));
+  box-shadow: 0 0 8px rgba(255, 171, 64, 0.6);
+}
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-header {
+  background: linear-gradient(
+    -45deg,
+    #e0f7fa,   /* سماوي فاتح */
+    #ffcdd2,   /* وردي باستيل */
+    #ffecb3,   /* برتقالي كريمي */
+    #ffffff,   /* أبيض */
+    #e0f7fa
+  );
+  background-size: 400% 400%;
+  animation: gradientShift 1s ease infinite;
+  border: none;
+}
+
+.animate-bounce-soft { animation: bounceSoft 1.8s ease-in-out infinite; }
+
+.pulse-soft {
+  animation: pulse 2.6s infinite;
+}

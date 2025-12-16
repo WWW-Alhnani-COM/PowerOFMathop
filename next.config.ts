@@ -1,8 +1,20 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
 
-const nextConfig: NextConfig = {
-  /* config options here */
-  reactCompiler: true,
+// ✅ استيراد مكتبة dotenv
+require('dotenv').config({ path: './.env' }); 
+
+const nextConfig = {
+  experimental: {
+    // ترك هذا الخيار لحل مشكلة الخطوط
+
+  },
+  compiler: {
+    styledComponents: true, // حافظ على أي إعدادات Compiler أخرى
+  },
+  // ✅ تمرير DATABASE_URL يدوياً إلى بيئة التطبيق
+  env: {
+    DATABASE_URL: process.env.DATABASE_URL,
+  },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

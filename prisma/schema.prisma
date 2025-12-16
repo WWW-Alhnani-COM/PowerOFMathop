@@ -1,0 +1,376 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL") 
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 2. تعريف الجداول (Models)
+
+// =================================================================
+// Branches (الفروع)
+// =================================================================
+model Branch {
+  branch_id   Int     @id @default(autoincrement())
+  branch_name String  @db.VarChar(100) @unique
+  location    String? @db.VarChar(200) // يمكن أن يكون NULL
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  students    Student[]
+  
+  @@map("branches") // اسم الجدول في DB
+}
+
+// =================================================================
+// Levels (المستويات)
+// =================================================================
+model Level {
+  level_id    Int     @id @default(autoincrement())
+  level_name  String  @db.VarChar(100)
+  level_order Int     @unique // المفتاح الفريد حسب تعريفك
+  description String? @db.Text
+  color       String? @db.VarChar(7) @default("#3B82F6")
+  icon        String? @db.VarChar(50)
+  is_active   Boolean @default(true) // tinyint(1)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  students    Student[]
+  levelRules  LevelRule[]
+  aiSuggestions AiSuggestion[]
+  sheets      Sheet[]
+  
+  @@map("levels")
+}
+
+// =================================================================
+// Rules (القواعد الرياضية)
+// =================================================================
+model Rule {
+  rule_id          Int             @id @default(autoincrement())
+  rule_name        String          @db.VarChar(100)
+  description      String?         @db.Text
+  difficulty_level Int?
+  icon             String?         @db.VarChar(50)
+  created_at       DateTime        @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  problemTypes     ProblemType[]
+  levelRules       LevelRule[]
+  performanceAnalytics PerformanceAnalytic[]
+  aiSuggestions    AiSuggestion[]
+  sheets           Sheet[]
+  
+  @@map("rules")
+}
+model Student {
+  student_id            Int     @id @default(autoincrement())
+  student_name          String  @db.VarChar(100)
+  branch_id             Int?
+  current_level_id      Int     @default(1)
+  preferred_language    String? @db.VarChar(10) @default("ar")
+  total_score           Int     @default(0)
+  total_correct_answers Int     @default(0)
+  total_wrong_answers   Int     @default(0)
+  total_time_spent      Int     @default(0)
+  current_streak        Int     @default(0)
+  best_streak           Int     @default(0)
+  status                String? @db.VarChar(20) @default("active")
+  created_at            DateTime @default(now()) @db.Timestamp(0)
+  updated_at            DateTime @default(now()) @updatedAt @db.Timestamp(0)
+
+  // العلاقات (المفاتيح الأجنبية)
+  branch                Branch? @relation(fields: [branch_id], references: [branch_id])
+  level                 Level   @relation(fields: [current_level_id], references: [level_id])
+
+  // العلاقات الأخرى
+  sheetResults          SheetResult[]
+  challengeResults      ChallengeResult[]
+  challengesAsChallenger Challenge[] @relation("Challenger")
+  challengesAsChallenged Challenge[] @relation("Challenged")
+  challengesAsWinner    Challenge[] @relation("Winner")
+  chatMessagesSent      ChatMessage[] @relation("Sender")
+  chatMessagesReceived  ChatMessage[] @relation("Receiver")
+  performanceAnalytics PerformanceAnalytic[]
+  aiSuggestions         AiSuggestion[]
+  notifications         Notification[] // تمت الإضافة
+
+  // مفتاح فريد مركب
+  @@unique([student_name, branch_id], name: "unique_student_branch")
+  
+  // الفهارس - تأكد من هذه الأسماء
+  @@index([branch_id], name: "idx_students_branch")
+  @@index([current_level_id], name: "idx_students_current_level") // غير الاسم هنا
+  @@index([student_name], name: "idx_students_name")
+  
+  @@map("students")
+}
+// =================================================================
+// Sheets (أوراق التمارين)
+// =================================================================
+model Sheet {
+  sheet_id          Int     @id @default(autoincrement())
+  sheet_name        String  @db.VarChar(100)
+  level_id          Int?
+  rule_id           Int?
+  total_problems    Int?    @default(50)
+  time_limit        Int
+  required_score    Int?    @default(70)
+  difficulty_level  Int?    @default(1)
+  is_active         Boolean @default(true)
+  created_at        DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  level             Level?  @relation(fields: [level_id], references: [level_id])
+  rule              Rule?   @relation(fields: [rule_id], references: [rule_id])
+  
+  sheetResults      SheetResult[]
+  challenges        Challenge[]
+  
+  @@map("sheets")
+}
+
+// =================================================================
+// SheetResults (نتائج الأوراق)
+// =================================================================
+model SheetResult {
+  result_id         Int      @id @default(autoincrement())
+  student_id        Int?
+  sheet_id          Int?
+  start_time        DateTime @default(now()) @db.Timestamp(0) @updatedAt
+  end_time          DateTime? @db.Timestamp(0)
+  total_correct     Int?     @default(0)
+  total_wrong       Int?     @default(0)
+  total_time_spent  Int?     @default(0)
+  score             Decimal? @db.Decimal(5, 2) @default(0.00)
+  accuracy          Decimal? @db.Decimal(5, 2) @default(0.00)
+  speed_rate        Decimal? @db.Decimal(5, 2) @default(0.00)
+  status            String?  @db.VarChar(20) @default("in_progress")
+  created_at        DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  student           Student? @relation(fields: [student_id], references: [student_id])
+  sheet             Sheet?   @relation(fields: [sheet_id], references: [sheet_id])
+  answerDetails     AnswerDetail[]
+  challengeResults ChallengeResult[]
+  
+  @@index([student_id], name: "idx_sheet_results_student")
+  @@index([sheet_id], name: "idx_sheet_results_sheet")
+  @@map("sheet_results")
+}
+
+// =================================================================
+// AnswerDetails (تفاصيل الإجابات)
+// =================================================================
+model AnswerDetail {
+  answer_id         Int     @id @default(autoincrement())
+  result_id         Int?
+  problem_type_id   Int?
+  problem_data      String  @db.LongText // تخزين JSON
+  user_answer       String? @db.VarChar(50)
+  correct_answer    String? @db.VarChar(50)
+  time_spent        Int
+  is_correct        Boolean // tinyint(1)
+  sequence_number   Int
+  created_at        DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  sheetResult       SheetResult? @relation(fields: [result_id], references: [result_id])
+  problemType       ProblemType? @relation(fields: [problem_type_id], references: [problem_type_id])
+  
+  @@index([result_id], name: "idx_answer_details_result")
+  @@map("answer_details")
+}
+
+// =================================================================
+// ProblemTypes (أنواع المسائل)
+// =================================================================
+model ProblemType {
+  problem_type_id   Int     @id @default(autoincrement())
+  rule_id           Int?
+  template          String  @db.VarChar(200)
+  parameters        String? @db.LongText // تخزين JSON
+  difficulty_weight Decimal? @db.Decimal(3, 2) @default(1.00)
+  expected_time     Int?    @default(10)
+  is_active         Boolean @default(true)
+  created_at        DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  rule              Rule?   @relation(fields: [rule_id], references: [rule_id])
+  answerDetails     AnswerDetail[]
+  
+  @@map("problem_types")
+}
+
+// =================================================================
+// Challenges (التحديات)
+// =================================================================
+model Challenge {
+  challenge_id      Int     @id @default(autoincrement())
+  challenge_code    String? @db.VarChar(10) @unique
+  challenger_id     Int?
+  challenged_id     Int?
+  sheet_id          Int?
+  challenge_type    String? @db.VarChar(20) @default("full_sheet")
+  status            String? @db.VarChar(20) @default("pending")
+  start_time        DateTime? @db.Timestamp(0)
+  end_time          DateTime? @db.Timestamp(0)
+  time_limit        Int?
+  winner_id         Int?
+  is_public         Boolean @default(false)
+  created_at        DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  challenger        Student? @relation("Challenger", fields: [challenger_id], references: [student_id])
+  challenged        Student? @relation("Challenged", fields: [challenged_id], references: [student_id])
+  winner            Student? @relation("Winner", fields: [winner_id], references: [student_id])
+  sheet             Sheet?   @relation(fields: [sheet_id], references: [sheet_id])
+
+  challengeResults ChallengeResult[]
+  chatMessages     ChatMessage[]
+
+  @@index([challenger_id, challenged_id], name: "idx_challenges_students")
+  @@map("challenges")
+}
+
+// =================================================================
+// ChatMessages (رسائل الدردشة)
+// =================================================================
+model ChatMessage {
+  message_id      Int     @id @default(autoincrement())
+  sender_id       Int?
+  receiver_id     Int?
+  challenge_id    Int?
+  message_type    String? @db.VarChar(20) @default("text")
+  message_text    String  @db.Text
+  is_approved     Boolean @default(false)
+  is_flagged      Boolean @default(false)
+  flagged_reason  String? @db.VarChar(100)
+  read_at         DateTime? @db.Timestamp(0)
+  created_at      DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  sender          Student? @relation("Sender", fields: [sender_id], references: [student_id])
+  receiver        Student? @relation("Receiver", fields: [receiver_id], references: [student_id])
+  challenge       Challenge? @relation(fields: [challenge_id], references: [challenge_id])
+
+  @@index([sender_id], name: "idx_chat_messages_sender")
+  @@map("chat_messages")
+}
+
+// =================================================================
+// ChallengeResults (نتائج التحديات)
+// =================================================================
+model ChallengeResult {
+  challenge_result_id Int     @id @default(autoincrement())
+  challenge_id        Int?
+  student_id          Int?
+  sheet_result_id     Int?
+  score               Int?    @default(0)
+  correct_answers     Int?    @default(0)
+  wrong_answers       Int?    @default(0)
+  total_time          Int?    @default(0)
+  rank                Int?
+  rewards             Int?    @default(0)
+  created_at          DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  challenge           Challenge? @relation(fields: [challenge_id], references: [challenge_id])
+  student             Student?   @relation(fields: [student_id], references: [student_id])
+  sheetResult         SheetResult? @relation(fields: [sheet_result_id], references: [result_id])
+
+  @@map("challenge_results")
+}
+
+// =================================================================
+// PerformanceAnalytics (تحليل الأداء)
+// =================================================================
+model PerformanceAnalytic {
+  analysis_id       Int      @id @default(autoincrement())
+  student_id        Int
+  rule_id           Int
+  total_attempts    Int?     @default(0)
+  correct_attempts  Int?     @default(0)
+  average_time      Decimal? @db.Decimal(8, 2) @default(0.00)
+  weakness_score    Decimal? @db.Decimal(5, 2) @default(0.00)
+  improvement_rate  Decimal? @db.Decimal(5, 2) @default(0.00)
+  last_practiced    DateTime? @db.Timestamp(0)
+  mastery_level     String?  @db.VarChar(20) @default("beginner")
+  created_at        DateTime @default(now()) @db.Timestamp(0)
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamp(0)
+
+  // العلاقات
+  student           Student  @relation(fields: [student_id], references: [student_id])
+  rule              Rule     @relation(fields: [rule_id], references: [rule_id])
+  
+  // المفتاح الفريد المركب
+  @@unique([student_id, rule_id], name: "unique_student_rule")
+  @@map("performance_analytics")
+}
+
+// =================================================================
+// AISuggestions (اقتراحات الذكاء الاصطناعي)
+// =================================================================
+model AiSuggestion {
+  suggestion_id       Int      @id @default(autoincrement())
+  student_id          Int?
+  suggested_rule_id   Int?
+  suggested_level_id  Int?
+  reason              String?  @db.Text
+  confidence_score    Decimal? @db.Decimal(5, 2) @default(0.00)
+  priority            Int?     @default(1)
+  is_applied          Boolean  @default(false)
+  applied_at          DateTime? @db.Timestamp(0)
+  created_at          DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  student             Student? @relation(fields: [student_id], references: [student_id])
+  suggestedRule       Rule?    @relation(fields: [suggested_rule_id], references: [rule_id])
+  suggestedLevel      Level?   @relation(fields: [suggested_level_id], references: [level_id])
+  
+  @@map("ai_suggestions")
+}
+
+// =================================================================
+// LevelRules (قواعد المستويات)
+// =================================================================
+model LevelRule {
+  level_rule_id     Int      @id @default(autoincrement())
+  level_id          Int
+  rule_id           Int
+  order_in_level    Int
+  created_at        DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  level             Level    @relation(fields: [level_id], references: [level_id])
+  rule              Rule     @relation(fields: [rule_id], references: [rule_id])
+
+  // المفتاح الفريد المركب
+  @@unique([level_id, rule_id], name: "unique_level_rule")
+  @@map("level_rules")
+}
+
+// =================================================================
+// Notifications (الإشعارات)
+// =================================================================
+model Notification {
+  notification_id Int      @id @default(autoincrement())
+  student_id     Int
+  title          String   @db.VarChar(100)
+  message        String   @db.Text
+  type           String   @db.VarChar(20) @default("general")
+  data           String?  @db.LongText // تخزين JSON
+  is_read        Boolean  @default(false)
+  created_at     DateTime @default(now()) @db.Timestamp(0)
+
+  // العلاقات
+  student        Student  @relation(fields: [student_id], references: [student_id], onDelete: Cascade)
+
+  @@index([student_id], name: "idx_notifications_student")
+  @@index([is_read], name: "idx_notifications_read")
+  @@index([created_at], name: "idx_notifications_created")
+  @@map("notifications")
+}
