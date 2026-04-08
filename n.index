@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
+  <title data-i18n="pageTitle">الفتح السليماني الطيبي - حاسبة الميراث</title>
+  <link rel="stylesheet" href="css/worth.css" />
+    <link rel="stylesheet" href="css/style.css" /> 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.7.7/handlebars.min.js"></script>
+ 
+</head>
+<body>
+  <header class="header">
+    <div class="header-container">
+      <a href="#" class="logo">
+        <div class="logo-icon">M</div>
+        <span>حاسبة الميراث</span>
+      </a>
+      
+      <nav class="nav-links">
+        <div class="language-switcher">
+          <div class="language-switcher-container">
+            <select id="languageSelect">
+              <option value="ar">العربية</option>
+              <option value="en">English</option>
+              <option value="ur">اردو</option>
+            </select>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <div id="sons_numbers" class="sons-modal hidden">
+    <div class="sons-modal-content">
+      <h2 data-i18n="fatherChildrenTitle">كم عدد أبناء وبنات الأب</h2>
+      <p data-i18n="fatherChildrenSubtitle">(إخوة وأخوات المتوفى)</p>
+      <div class="input-group">
+        <label for="dad_sons" data-i18n="fatherSons">عدد أولاد الأب</label>
+        <select id="dad_sons" name="dad_sons" data-i18n-title="fatherSons">
+          <option value="0" data-i18n="no">لا</option>
+          <option value="1" data-i18n="oneSon">ولد</option>
+          <option value="2" data-i18n="twoSons">ولدين</option>
+          <option value="3" data-i18n="moreThanTwoSons">أكثر من ولدين</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label for="dad_girls" data-i18n="fatherDaughters">عدد بنات الأب</label>
+        <select id="dad_girls" name="dad_girls" data-i18n-title="fatherDaughters">
+          <option value="0" data-i18n="no">لا</option>
+          <option value="1" data-i18n="oneDaughter">بنت</option>
+          <option value="2" data-i18n="twoDaughters">بنتين</option>
+          <option value="3" data-i18n="threeDaughters">ثلاث بنات</option>
+          <option value="4" data-i18n="fourDaughters">أربع بنات</option>
+          <option value="5" data-i18n="moreThanFourDaughters">أكثر من أربع بنات</option>
+        </select>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-next" id="sonsNextBtn" data-i18n="next" data-i18n-title="next">التالي</button>
+        <button class="btn btn-previous" id="closeSonsPopup" data-i18n="close" data-i18n-title="close">إغلاق</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="app-container">
+    <h1 class="app-title" data-i18n="mainTitle">حاسبة تقسيم الميراث</h1>
+    
+    <div class="container">
+      <div class="tabs">
+        <button class="tab-button active calculator" data-tab="calculator" disabled data-i18n-title="tab1Title">
+          <span class="step-number">1</span>
+          <span class="step-title" data-i18n="tab1Title">البيانات الأساسية</span>
+        </button>
+        <button class="tab-button religious" data-tab="religious" disabled data-i18n-title="tab2Title">
+          <span class="step-number">2</span>
+          <span class="step-title" data-i18n="tab2Title">بيانات الورثة</span>
+        </button>
+        <button class="tab-button shares" data-tab="shares" disabled data-i18n-title="tab3Title">
+          <span class="step-number">3</span>
+          <span class="step-title" data-i18n="tab3Title">نتائج التوزيع</span>
+        </button>
+      </div>
+      
+      <div class="tab-content active" id="calculator">
+        <div class="form-container">
+          <p class="alert" data-i18n="alert1">
+            قم بإدخال جنس المتوفى واسمه ومبلغ التركة إن كان معروفاً والأمتار المراد تقسيمها إن كانت معروفة وقم بتحديد جميع ورثته ثم اضغط على التالي
+          </p>
+          <form id="inheritanceForm">
+            <div class="form-group-inline">
+              <div class="flex-container">
+                <label data-i18n="deceasedType">نوع المتوفى</label>
+                <div class="radio-group">
+                  <label class="radio-item" for="male">
+                    <input type="radio" id="male" name="deceased_gender" value="male" data-i18n-title="male" class="radio-input">
+                    <span class="radio-custom"></span>
+                    <span class="radio-label" data-i18n="male">ذكر</span>
+                  </label>
+                  <label class="radio-item" for="female">
+                    <input type="radio" id="female" name="deceased_gender" value="female" data-i18n-title="female" class="radio-input">
+                    <span class="radio-custom"></span>
+                    <span class="radio-label" data-i18n="female">أنثى</span>
+                  </label>
+                </div>
+                
+                <!-- حقلي الزوج/الزوجة -->
+                <div class="spouse-fields-container">
+                  <div class="input-group hidden" id="spouse_female">
+                    <label for="wife" data-i18n="numberOfWives">عدد الزوجات</label>
+                    <select id="wife" name="wife" class="spouse-field" data-i18n-title="numberOfWives">
+                      <option value="0" data-i18n="noOption">لا</option>
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                      <option value="4">4</option>
+                    </select>
+                  </div>
+
+                  <div class="input-group hidden" id="spouse_male">
+                    <label for="husband" data-i18n="hasHusband">هل يوجد زوج؟</label>
+                    <select id="husband" name="husband" class="spouse-field" data-i18n-title="hasHusband">
+                      <option value="no" data-i18n="noOption">لا</option>
+                      <option value="yes" data-i18n="yesOption">نعم</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="deceased_religion">
+                <div class="input-group">
+                  <label for="deceased_religion" data-i18n="religion">الديانة</label>
+                  <select id="deceased_religion" name="deceased_religion" data-i18n-title="religion">
+                    <option value="مسلم" data-i18n="muslim">مسلم</option>
+                    <option value="غير مسلم" data-i18n="nonMuslim">غير مسلم</option>
+                  </select>
+                </div>
+                <div class="worth-count">
+                  <span id="worthCount">0</span>
+                  <p data-i18n="heir">وريث</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- سطر اسم المتوفى والمبلغ والأمتار -->
+            <div class="form-group-row">
+              <div class="input-group name-field">
+                <label for="deceased_name" data-i18n="deceasedName">اسم المتوفى</label>
+                <input type="text" id="deceased_name" name="deceased_name" data-i18n-placeholder="enterDeceasedName" data-i18n-title="deceasedName" />
+              </div>
+              
+              <div class="input-group input-with-unit">
+                <label for="amount" data-i18n="estateAmount">مبلغ التركة</label>
+                <input type="number" id="amount" data-i18n-placeholder="enterAmount" data-i18n-title="estateAmount" />
+                <span class="unit">
+                  <img src="SRE.png" alt="ريال" class="currency-icon" />
+                </span>
+              </div>
+              
+              <div class="input-group input-with-unit">
+                <label for="materials" data-i18n="materials">الأمتار المراد توزيعها</label>
+                <input type="number" id="materials" data-i18n-placeholder="enterMaterials" data-i18n-title="materials" />
+                <span class="unit" data-i18n="meter">متر</span>
+              </div>
+            </div>
+
+            <hr />
+            <div id="dynamic-fields"></div>
+          </form>
+        </div>
+      </div>
+      
+      <div class="tab-content" id="religious">
+        <div class="form-container">
+          <p class="alert" data-i18n="alert2">
+            اكتب أسماء الورثة واختر ديانة كل وارث ثم اضغط على التالي
+          </p>
+          <div class="table-container">
+            <table class="deceased">
+              <thead>
+                <tr>
+                  <th data-i18n="deceasedType">نوع المتوفى</th>
+                  <th data-i18n="religion">الديانة</th>
+                  <th data-i18n="name">الاسم</th>
+                  <th data-i18n="estateAmount">مبلغ التركة</th>
+                  <th data-i18n="materials">الأمتار المراد توزيعها</th>
+                </tr>
+              </thead>
+              <tbody id="deceasedInfoBody"></tbody>
+            </table>
+          </div>
+          <form id="resultForm">
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="counter">#</th>
+                    <th data-i18n="category">الفئة</th>
+                    <th data-i18n="name">الاسم</th>
+                    <th data-i18n="religiousStatus">الحالة الدينية</th>
+                  </tr>
+                </thead>
+                <tbody id="resultTableBody"></tbody>
+              </table>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="tab-content" id="shares">
+        <p class="alert alert-deceased print-hide" data-i18n="alert3">
+          تمت القسمة ويمكنك طباعة نتيجة القسمة أو اضغط على السابق للتعديل
+        </p>
+        
+        <div class="print-only-title" data-i18n="printTitle">
+          نتيجة تقسيم الميراث
+        </div>
+        
+        <h3 class="header print-hide" data-i18n="madhhabTitle">حسب مذهب آل البيت عليهم الصلاة والسلام</h3>
+        <div class="table-container deceased-info">
+          <table class="deceased">
+            <thead>
+              <tr>
+                <th data-i18n="deceasedType">نوع المتوفى</th>
+                <th data-i18n="religion">الديانة</th>
+                <th data-i18n="name">الاسم</th>
+                <th data-i18n="estateAmount">مبلغ التركة</th>
+                <th data-i18n="materials">الأمتار المراد توزيعها</th>
+              </tr>
+            </thead>
+            <tbody id="sharesDeceasedInfoBody"></tbody>
+          </table>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th class="counter">#</th>
+                <th data-i18n="relationship">صلة القرابة</th>
+                <th data-i18n="heirName">اسم الوارث</th>
+                <th data-i18n="religion">الملة</th>
+                <th data-i18n="moneyShare">مقدار الورث من المال</th>
+                <th data-i18n="materialsShare">مقدار الورث من الأمتار</th>
+                <th data-i18n="percentageShare">مقدار الورث بالنسبة</th>
+                <th data-i18n="explanation">توضيح</th>
+              </tr>
+            </thead>
+            <tbody id="sharesTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fixed-footer">
+    <div class="footer-buttons">
+      <button id="footer-prev-btn" class="btn btn-previous hidden" data-i18n="previous" data-i18n-title="previous">
+        السابق
+      </button>
+      <div class="footer-right-buttons">
+        <button id="footer-print-btn" class="btn btn-print hidden" data-i18n="print" data-i18n-title="print">
+          <i class="fas fa-print"></i>
+          <span data-i18n="print">طباعة</span>
+        </button>
+        <button id="footer-next-btn" class="btn btn-next next-btn-left" data-i18n="next">
+          التالي
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="alertSystem" class="alert-system hidden">
+    <div class="alert-container">
+      <div class="alert-header">
+        <div class="alert-icon">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <h3 class="alert-title" data-i18n="alertTitle">تنبيه</h3>
+      </div>
+      <div class="alert-content">
+        <p class="alert-message" id="alertMessage">هنا سيظهر نص التنبيه</p>
+        <div class="alert-actions">
+          <button class="alert-button alert-button-primary" id="alertConfirm">
+            <span data-i18n="ok">حسناً</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script id="field-template" type="text/x-handlebars-template">
+    {{#each groups}}
+      <div class="form-group-container">
+        <div class="group-header">
+          <h3 data-i18n="category{{@index}}">الفئة {{groupTitle}}</h3>
+        </div>
+        
+        {{#each (groupFields fields) as |row|}}
+          <div class="field-row">
+            {{#each row as |field|}}
+              <div class="field-item">
+                <label for="{{field.id}}" data-i18n="{{field.id}}">{{field.title}}</label>
+                <select id="{{field.id}}" name="{{field.id}}" data-i18n-title="{{field.id}}">
+                  {{#each field.options}}
+                    <option value="{{this}}" data-i18n="{{this}}">
+                      {{#if (isTranslatable this)}}
+                        {{t this}}
+                      {{else}}
+                        {{this}}
+                      {{/if}}
+                    </option>
+                  {{/each}}
+                </select>
+              </div>
+            {{/each}}
+          </div>
+        {{/each}}
+      </div>
+    {{/each}}
+  </script>
+
+  <div class="modal-overlay hidden" id="modalOverlay">
+    <div class="modal" id="validationModal">
+      <div class="modal-content" data-i18n="validationError">يجب اختيار وارث واحد على الأقل للمتابعة</div>
+      <button class="modal-button" id="closeModal" data-i18n="ok" data-i18n-title="ok">حسناً</button>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // تحديث ألوان الحقول حسب الحالة الدينية
+      function updateFieldColors() {
+        // حقول الزوج/الزوجة
+        const wifeField = document.getElementById('wife');
+        const husbandField = document.getElementById('husband');
+        const deceasedNameField = document.getElementById('deceased_name');
+        const religionField = document.getElementById('deceased_religion');
+        
+        // تحديث حقل الزوجات
+        if (wifeField) {
+          const wifeValue = wifeField.value;
+          wifeField.classList.remove('filled-field');
+          if (wifeValue !== '0') {
+            wifeField.classList.add('filled-field');
+          }
+        }
+        
+        // تحديث حقل الزوج
+        if (husbandField) {
+          const husbandValue = husbandField.value;
+          husbandField.classList.remove('filled-field');
+          if (husbandValue === 'yes') {
+            husbandField.classList.add('filled-field');
+          }
+        }
+        
+        // تحديث حقل اسم المتوفى حسب الحالة الدينية
+        if (deceasedNameField && religionField) {
+          const nameValue = deceasedNameField.value.trim();
+          const religionValue = religionField.value;
+          
+          // إزالة جميع الفئات المتعلقة بالألوان
+          deceasedNameField.classList.remove('filled-field', 'muslim-name-field', 'non-muslim-name-field');
+          
+          if (nameValue.length > 0) {
+            deceasedNameField.classList.add('filled-field');
+            
+            // إضافة اللون حسب الحالة الدينية
+            if (religionValue === 'مسلم') {
+              deceasedNameField.classList.add('muslim-name-field');
+            } else if (religionValue === 'غير مسلم') {
+              deceasedNameField.classList.add('non-muslim-name-field');
+            }
+          }
+        }
+        
+        // تحديث حقل الديانة
+        if (religionField) {
+          const religionValue = religionField.value;
+          religionField.classList.remove('muslim-field', 'non-muslim-field');
+          if (religionValue === 'مسلم') {
+            religionField.classList.add('muslim-field');
+          } else if (religionValue === 'غير مسلم') {
+            religionField.classList.add('non-muslim-field');
+          }
+        }
+        
+        // تحديث حقول الورثة في الجدول
+        const heirReligionFields = document.querySelectorAll('#resultTableBody .heir-religion, #sharesTableBody .heir-religion');
+        const heirNameFields = document.querySelectorAll('#resultTableBody .heir-name, #sharesTableBody .heir-name');
+        
+        // تحديث حقول الديانة في الجدول
+        heirReligionFields.forEach(field => {
+          const value = field.value || field.textContent;
+          field.classList.remove('muslim-field', 'non-muslim-field');
+          if (value === 'مسلم') {
+            field.classList.add('muslim-field');
+          } else if (value === 'غير مسلم') {
+            field.classList.add('non-muslim-field');
+          }
+        });
+        
+        // تحديث حقول أسماء الورثة في الجدول
+        heirNameFields.forEach(field => {
+          const nameValue = field.value ? field.value.trim() : field.textContent.trim();
+          const row = field.closest('tr');
+          const religionField = row ? row.querySelector('.heir-religion') : null;
+          const religionValue = religionField ? (religionField.value || religionField.textContent) : '';
+          
+          field.classList.remove('filled-field', 'muslim-name-field', 'non-muslim-name-field');
+          
+          if (nameValue.length > 0) {
+            field.classList.add('filled-field');
+            
+            // إضافة اللون حسب الحالة الدينية
+            if (religionValue === 'مسلم') {
+              field.classList.add('muslim-name-field');
+            } else if (religionValue === 'غير مسلم') {
+              field.classList.add('non-muslim-name-field');
+            }
+          }
+        });
+      }
+      
+      // إضافة مستمعي الأحداث للحقول
+      const wifeField = document.getElementById('wife');
+      const husbandField = document.getElementById('husband');
+      const deceasedNameField = document.getElementById('deceased_name');
+      const religionField = document.getElementById('deceased_religion');
+      
+      if (wifeField) wifeField.addEventListener('change', updateFieldColors);
+      if (husbandField) husbandField.addEventListener('change', updateFieldColors);
+      if (deceasedNameField) deceasedNameField.addEventListener('input', updateFieldColors);
+      if (religionField) religionField.addEventListener('change', updateFieldColors);
+      
+      // تحديث حقول الورثة في التبويب الثاني عند التغيير
+      document.addEventListener('input', function(e) {
+        if (e.target.classList.contains('heir-name') || e.target.classList.contains('heir-religion')) {
+          updateFieldColors();
+        }
+      });
+      
+      // تحديث حقول الورثة في التبويب الثاني عند تغيير الـ select
+      document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('heir-name') || e.target.classList.contains('heir-religion')) {
+          updateFieldColors();
+        }
+      });
+      
+      // تحديث تلقائي عند تغيير التبويب
+      document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('tab-button')) {
+          setTimeout(updateFieldColors, 300);
+        }
+      });
+      
+      // تحديث تلقائي عند تحميل الصفحة أو تحديث البيانات
+      function refreshAllFields() {
+        setTimeout(updateFieldColors, 100);
+      }
+      
+      // استدعاء التحديث عند تحميل الصفحة
+      setTimeout(updateFieldColors, 500);
+      
+      // تحديث سمة value لجميع حقول select
+      const selects = document.querySelectorAll('select');
+      selects.forEach(select => {
+        select.setAttribute('value', select.value);
+        select.addEventListener('change', function() {
+          this.setAttribute('value', this.value);
+          updateFieldColors();
+        });
+      });
+      
+      // جعل الدالة متاحة عالمياً لاستدعائها من الملفات الأخرى
+      window.updateFieldColors = updateFieldColors;
+      window.refreshAllFields = refreshAllFields;
+    });
+  </script>
+
+  <script type="module">
+    import { translations, getCurrentLanguage, setLanguage, t, isRTL } from './js/translations.js';
+    
+    function applyTranslations() {
+      const lang = getCurrentLanguage();
+      
+      document.documentElement.dir = isRTL(lang) ? 'rtl' : 'ltr';
+      document.documentElement.lang = lang;
+      document.body.className = isRTL(lang) ? '' : 'ltr';
+      if (lang === 'ur') document.body.classList.add('lang-ur');
+      
+      const languageSelect = document.getElementById('languageSelect');
+      if (languageSelect) {
+        languageSelect.value = lang;
+        const options = languageSelect.querySelectorAll('option');
+        options[0].textContent = 'العربية';
+        options[1].textContent = 'English';
+        options[2].textContent = 'اردو';
+      }
+      
+      document.querySelectorAll('[data-i18n]').forEach(element => {
+        const key = element.getAttribute('data-i18n');
+        if (translations[lang] && translations[lang][key]) {
+          element.textContent = translations[lang][key];
+        }
+      });
+      
+      document.querySelectorAll('[data-i18n-title]').forEach(element => {
+        const key = element.getAttribute('data-i18n-title');
+        if (translations[lang] && translations[lang][key]) {
+          element.title = translations[lang][key];
+        }
+      });
+      
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+        const key = element.getAttribute('data-i18n-placeholder');
+        if (translations[lang] && translations[lang][key]) {
+          element.placeholder = translations[lang][key];
+        }
+      });
+    }
+    
+    document.getElementById('languageSelect').addEventListener('change', function(e) {
+      const lang = e.target.value;
+      setLanguage(lang);
+      applyTranslations();
+    });
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      applyTranslations();
+    });
+  </script>
+
+  <script type="module" src="js/new_script.js"></script>
+</body>
+</html>

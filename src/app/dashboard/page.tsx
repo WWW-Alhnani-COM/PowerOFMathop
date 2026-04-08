@@ -9,29 +9,37 @@ import {
 import { getSessionStudentId } from "@/actions/auth.actions";
 import DashboardClient from "./DashboardClient";
 
+// (اختياري لكن يجمّل الـ types)
+interface DashboardServerProps {
+  stats: any | null;
+  activitiesCount: number;
+  progress: any | null;
+  goals: any | null;
+  suggestionsCount: number;
+}
+
 export default async function DashboardPage() {
-  // ✅ نجيب student_id من الكوكيز (جلسة حقيقية)
+  // 1️⃣ جلب الطالب من الكوكيز
   const studentId = await getSessionStudentId();
 
-  if (!studentId || !Number.isInteger(studentId) || studentId <= 0) {
+  if (!studentId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] px-4">
-        <div className="card max-w-md text-center">
-          <h1 className="text-2xl font-extrabold text-gray-900 mb-2">
-            ⚠️ لا يوجد طالب محدّد
-          </h1>
-          <p className="text-gray-600 mb-4">
-            يرجى تسجيل الدخول أولاً، ثم فتح لوحة التحكم من حساب الطالب.
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-orange">
+        <div className="card max-w-lg text-center">
+          <div className="text-5xl mb-4">⚠️</div>
+          <h1 className="text-2xl font-black mb-2">لا يوجد طالب محدّد</h1>
+          <p className="text-gray-600 mb-6">
+            يرجى فتح لوحة التحكم من خلال صفحة تسجيل الطالب أو تسجيل الدخول، حتى نعرف من هو الطالب.
           </p>
-          <a href="/login" className="btn btn-primary w-full justify-center">
-            الذهاب إلى صفحة الدخول
+          <a href="/login" className="btn btn-primary">
+            العودة لصفحة تسجيل الدخول
           </a>
         </div>
       </div>
     );
   }
 
-  // ✅ كل النداءات للسيرفر هنا (وليس في client)
+  // 2️⃣ جلب كل بيانات لوحة التحكم من الـ actions
   const [statsRes, activitiesRes, progressRes, goalsRes, suggestionsRes] =
     await Promise.all([
       getStudentDashboardStats(studentId),
@@ -41,16 +49,29 @@ export default async function DashboardPage() {
       getLearningSuggestions(studentId),
     ]);
 
-  // نكوّن شكل بيانات موحد نمرره للـ Client
-  const props = {
-    studentId,
-    stats: statsRes?.success ? statsRes.data : null,
-    activities: activitiesRes?.success ? activitiesRes.data || [] : [],
-    progress: progressRes?.success ? progressRes.data : null,
-    goals: goalsRes?.success ? goalsRes.data : null,
-    suggestions: suggestionsRes?.success ? suggestionsRes.data || [] : [],
+  // 3️⃣ حساب الأعداد بشكل آمن (بدون تحذير TypeScript)
+  const activitiesCount =
+    activitiesRes.success && Array.isArray(activitiesRes.data)
+      ? activitiesRes.data.length
+      : 0;
+
+  const suggestionsCount =
+    suggestionsRes.success && Array.isArray(suggestionsRes.data)
+      ? suggestionsRes.data.length
+      : 0;
+
+  // 4️⃣ بناء الـ props الخام
+  const rawProps: DashboardServerProps = {
+    stats: statsRes.success ? statsRes.data : null,
+    activitiesCount,
+    progress: progressRes.success ? progressRes.data : null,
+    goals: goalsRes.success ? goalsRes.data : null,
+    suggestionsCount,
   };
 
-  // 🎨 كل الـ UI في Component عميل
+  // ⭐ 5️⃣ تنظيف البيانات من Prisma Decimal وتحويلها لكائنات عادية
+  const props = JSON.parse(JSON.stringify(rawProps)) as DashboardServerProps;
+
+  // 6️⃣ تمرير البيانات النظيفه للـ Client Component
   return <DashboardClient {...props} />;
 }

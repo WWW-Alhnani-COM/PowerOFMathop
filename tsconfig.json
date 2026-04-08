@@ -32,6 +32,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-, "src/auth.js", "src/app/dashboard/page.tsx4"  ],
+, "src/auth.js", "src/app/dashboard/page.tsx4", "src/app/page.jsx"  ],
   "exclude": ["node_modules"]
 }
