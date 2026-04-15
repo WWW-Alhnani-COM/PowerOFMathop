@@ -1,299 +1,356 @@
-// src/actions/challenge.actions.js
 'use server'
 
-import { prisma } from '../lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 import { getSessionStudentId, validateSession } from './auth.actions'
 import { v4 as uuidv4 } from 'uuid'
 import { revalidatePath } from 'next/cache'
 
 // ***************************************************************
-// 1. تعريف الثوابت
+// 1. الثوابت
 // ***************************************************************
 const CHALLENGE_STATUS = {
-    PENDING: 'pending',
-    ACCEPTED: 'accepted',
-    IN_PROGRESS: 'in_progress',
-    COMPLETED: 'completed',
-    EXPIRED: 'expired',
-    REJECTED: 'rejected',
-    CANCELLED: 'cancelled'
+  PENDING: 'pending',
+  ACCEPTED: 'accepted',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  EXPIRED: 'expired',
+  REJECTED: 'rejected',
+  CANCELLED: 'cancelled'
 }
 
-// ***************************************************************
-// 2. جلب تحديات الطالب مع الإحصائيات
-// ***************************************************************
+// ===============================================================
+// 2. جلب تحديات الطالب
+// ===============================================================
 export async function getStudentChallenges(filter = 'all') {
-    try {
-        const studentId = await getSessionStudentId()
-        if (!studentId) return { success: false, error: 'يجب تسجيل الدخول', redirect: '/login' }
+  try {
+    const studentId = await getSessionStudentId()
+    if (!studentId) return { success: false, error: 'يجب تسجيل الدخول', redirect: '/login' }
 
-        const whereClause = {
-            OR: [{ challenger_id: studentId }, { challenged_id: studentId }]
-        }
-        if (filter !== 'all') whereClause.status = filter
+    const supabase = createClient()
 
-        const challenges = await prisma.challenge.findMany({
-            where: whereClause,
-            include: {
-                challenger: { select: { student_id: true, student_name: true, total_score: true } },
-                challenged: { select: { student_id: true, student_name: true, total_score: true } },
-                winner: { select: { student_name: true } },
-                sheet: {
-                    include: {
-                        level: { select: { level_name: true, color: true } },
-                        rule: { select: { rule_name: true, icon: true } }
-                    }
-                }
-            },
-            orderBy: { created_at: 'desc' },
-            take: 50
-        })
+    let query = supabase
+      .from('challenges')
+      .select(`
+        *,
+        challenger:students!challenges_challenger_id_fkey(student_id, student_name, total_score),
+        challenged:students!challenges_challenged_id_fkey(student_id, student_name, total_score),
+        winner:students!challenges_winner_id_fkey(student_name),
+        sheet:sheets(
+          sheet_id,
+          sheet_name,
+          difficulty_level,
+          required_score,
+          time_limit,
+          level:levels(level_name, color),
+          rule:rules(rule_name, icon)
+        )
+      `)
+      .or(`challenger_id.eq.${studentId},challenged_id.eq.${studentId}`)
+      .order('created_at', { ascending: false })
+      .limit(50)
 
-        const processed = challenges.map(c => ({
-            ...c,
-            sheet: c.sheet ? {
-                ...c.sheet,
-                difficulty_level: Number(c.sheet.difficulty_level || 1),
-                required_score: Number(c.sheet.required_score || 0),
-                time_limit: Number(c.sheet.time_limit || 0)
-            } : null
-        }))
-
-        return { success: true, data: processed }
-    } catch (error) {
-        console.error('Error fetching challenges:', error)
-        return { success: false, error: 'فشل جلب البيانات' }
+    if (filter !== 'all') {
+      query = query.eq('status', filter)
     }
+
+    const { data, error } = await query
+
+    if (error) throw error
+
+    const processed = data.map(c => ({
+      ...c,
+      sheet: c.sheet ? {
+        ...c.sheet,
+        difficulty_level: Number(c.sheet.difficulty_level || 1),
+        required_score: Number(c.sheet.required_score || 0),
+        time_limit: Number(c.sheet.time_limit || 0)
+      } : null
+    }))
+
+    return { success: true, data: processed }
+  } catch (error) {
+    return { success: false, error: 'فشل جلب البيانات' }
+  }
 }
 
+// ===============================================================
+// 3. الورقات المتاحة
+// ===============================================================
 export async function getAvailableSheetsForChallenge() {
-    try {
-        const session = await validateSession()
-        if (!session.success) return session
+  try {
+    const session = await validateSession()
+    if (!session.success) return session
 
-        const sheets = await prisma.sheet.findMany({
-            where: { is_active: true },
-            select: {
-                sheet_id: true,
-                sheet_name: true,
-                level_id: true,
-                rule_id: true,
-                total_problems: true,
-                difficulty_level: true,
-                time_limit: true
-            },
-            orderBy: [{ difficulty_level: 'asc' }, { sheet_name: 'asc' }]
-        })
+    const supabase = createClient()
 
-        return { success: true, data: sheets }
-    } catch (error) {
-        console.error('Error fetching available sheets:', error)
-        return { success: false, error: 'فشل جلب الورقات المتاحة' }
-    }
+    const { data, error } = await supabase
+      .from('sheets')
+      .select('sheet_id, sheet_name, level_id, rule_id, total_problems, difficulty_level, time_limit')
+      .eq('is_active', true)
+      .order('difficulty_level', { ascending: true })
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: 'فشل جلب الورقات المتاحة' }
+  }
 }
 
+// ===============================================================
+// 4. تفاصيل التحدي
+// ===============================================================
 export async function getChallengeDetails(challenge_id) {
-    try {
-        const challenge = await prisma.challenge.findUnique({
-            where: { challenge_id },
-            include: {
-                challenger: { select: { student_id: true, student_name: true, total_score: true } },
-                challenged: { select: { student_id: true, student_name: true, total_score: true } },
-                winner: { select: { student_name: true } },
-                sheet: {
-                    include: {
-                        level: { select: { level_id: true, level_name: true, color: true } },
-                        rule: { select: { rule_id: true, rule_name: true, icon: true } }
-                    }
-                }
-            }
-        })
+  try {
+    const supabase = createClient()
 
-        if (!challenge) {
-            return { success: false, error: 'التحدي غير موجود' }
-        }
+    const { data, error } = await supabase
+      .from('challenges')
+      .select(`
+        *,
+        challenger:students!challenges_challenger_id_fkey(student_id, student_name, total_score),
+        challenged:students!challenges_challenged_id_fkey(student_id, student_name, total_score),
+        winner:students!challenges_winner_id_fkey(student_name),
+        sheet:sheets(
+          sheet_id,
+          sheet_name,
+          level:levels(level_id, level_name, color),
+          rule:rules(rule_id, rule_name, icon)
+        )
+      `)
+      .eq('challenge_id', challenge_id)
+      .single()
 
-        return { success: true, data: challenge }
-    } catch (error) {
-        console.error('Error fetching challenge details:', error)
-        return { success: false, error: 'فشل جلب تفاصيل التحدي' }
+    if (error || !data) {
+      return { success: false, error: 'التحدي غير موجود' }
     }
+
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: 'فشل جلب التفاصيل' }
+  }
 }
 
-// ***************************************************************
-// 3. إنشاء تحدي جديد (مع التحقق من المستوى)
-// ***************************************************************
-export async function createChallenge({ sheet_id, challenged_id = null, challenge_type = 'full_sheet', is_public = false, time_limit = 10 }) {
-    try {
-        const session = await validateSession()
-        if (!session.success) return session
+// ===============================================================
+// 5. إنشاء تحدي
+// ===============================================================
+export async function createChallenge({
+  sheet_id,
+  challenged_id = null,
+  challenge_type = 'full_sheet',
+  is_public = false,
+  time_limit = 10
+}) {
+  try {
+    const session = await validateSession()
+    if (!session.success) return session
 
-        const challenger_id = session.data.student_id
-        const sheet = await prisma.sheet.findUnique({ where: { sheet_id } })
+    const challenger_id = session.data.student_id
+    const supabase = createClient()
 
-        if (!sheet) return { success: false, error: 'الورقة غير موجودة' }
+    // جلب الشيت
+    const { data: sheet } = await supabase
+      .from('sheets')
+      .select('*')
+      .eq('sheet_id', sheet_id)
+      .single()
 
-        // التأكد من تطابق المستوى برمجياً (تحويل لـ Number لتجنب أخطاء النوع)
-        if (Number(session.data.current_level_id) !== Number(sheet.level_id)) {
-            return { success: false, error: 'مستواك الحالي لا يسمح لك بإنشاء تحدي لهذه الورقة' }
-        }
+    if (!sheet) return { success: false, error: 'الورقة غير موجودة' }
 
-        const challenge_code = uuidv4().substring(0, 8).toUpperCase()
-        const challenge = await prisma.challenge.create({
-            data: {
-                challenge_code,
-                challenger_id,
-                challenged_id,
-                sheet_id,
-                challenge_type,
-                status: CHALLENGE_STATUS.PENDING,
-                time_limit: time_limit * 60,
-                is_public
-            }
-        })
-
-        revalidatePath('/challenges')
-        return { success: true, data: challenge, message: 'تم إنشاء التحدي بنجاح' }
-    } catch (error) {
-        return { success: false, error: error.message }
+    if (Number(session.data.current_level_id) !== Number(sheet.level_id)) {
+      return { success: false, error: 'مستواك لا يسمح' }
     }
+
+    const challenge_code = uuidv4().substring(0, 8).toUpperCase()
+
+    const { data, error } = await supabase
+      .from('challenges')
+      .insert({
+        challenge_code,
+        challenger_id,
+        challenged_id,
+        sheet_id,
+        challenge_type,
+        status: CHALLENGE_STATUS.PENDING,
+        time_limit: time_limit * 60,
+        is_public
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    revalidatePath('/challenges')
+
+    return { success: true, data, message: 'تم إنشاء التحدي' }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 }
 
-// ***************************************************************
-// 4. الرد على التحدي (قبول/رفض)
-// ***************************************************************
+// ===============================================================
+// 6. الرد على التحدي
+// ===============================================================
 export async function respondToChallenge(challenge_id, response) {
-    try {
-        const student_id = await getSessionStudentId()
-        const challenge = await prisma.challenge.findUnique({ 
-            where: { challenge_id },
-            include: { sheet: true }
-        })
+  try {
+    const student_id = await getSessionStudentId()
+    const supabase = createClient()
 
-        if (!challenge || challenge.challenged_id !== student_id) 
-            return { success: false, error: 'غير مصرح لك' }
+    const { data: challenge } = await supabase
+      .from('challenges')
+      .select('*')
+      .eq('challenge_id', challenge_id)
+      .single()
 
-        if (response === 'accept') {
-            // استخدام Transaction لضمان إنشاء سجلات النتائج للطرفين معاً
-            await prisma.$transaction([
-                prisma.challengeResult.create({ data: { challenge_id, student_id: challenge.challenger_id, score: 0 } }),
-                prisma.challengeResult.create({ data: { challenge_id, student_id: challenge.challenged_id, score: 0 } }),
-                prisma.challenge.update({
-                    where: { challenge_id },
-                    data: { status: CHALLENGE_STATUS.ACCEPTED, start_time: new Date() }
-                })
-            ])
-            return { success: true, message: 'تم قبول التحدي' }
-        } else {
-            await prisma.challenge.update({
-                where: { challenge_id },
-                data: { status: CHALLENGE_STATUS.REJECTED }
-            })
-            return { success: true, message: 'تم رفض التحدي' }
-        }
-    } catch (error) {
-        return { success: false, error: error.message }
+    if (!challenge || challenge.challenged_id !== student_id) {
+      return { success: false, error: 'غير مصرح' }
     }
+
+    if (response === 'accept') {
+      await supabase
+        .from('challenge_results')
+        .insert([
+          { challenge_id, student_id: challenge.challenger_id, score: 0 },
+          { challenge_id, student_id: challenge.challenged_id, score: 0 }
+        ])
+
+      await supabase
+        .from('challenges')
+        .update({
+          status: CHALLENGE_STATUS.ACCEPTED,
+          start_time: new Date()
+        })
+        .eq('challenge_id', challenge_id)
+
+      return { success: true, message: 'تم القبول' }
+    }
+
+    await supabase
+      .from('challenges')
+      .update({ status: CHALLENGE_STATUS.REJECTED })
+      .eq('challenge_id', challenge_id)
+
+    return { success: true, message: 'تم الرفض' }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 }
 
-// ***************************************************************
-// 5. تسليم إجابة (أثناء اللعب)
-// ***************************************************************
-export async function submitChallengeAnswer({ challenge_id, problem_data, user_answer, correct_answer, time_spent, is_correct }) {
-    try {
-        const student_id = await getSessionStudentId()
-        
-        // البحث عن سجل نتيجة الطالب في هذا التحدي
-        const challengeResult = await prisma.challengeResult.findFirst({
-            where: { challenge_id, student_id }
-        })
+// ===============================================================
+// 7. إرسال إجابة
+// ===============================================================
+export async function submitChallengeAnswer({
+  challenge_id,
+  is_correct,
+  time_spent
+}) {
+  try {
+    const student_id = await getSessionStudentId()
+    const supabase = createClient()
 
-        if (!challengeResult) throw new Error('سجل النتيجة غير موجود')
+    const { data: result } = await supabase
+      .from('challenge_results')
+      .select('*')
+      .eq('challenge_id', challenge_id)
+      .eq('student_id', student_id)
+      .single()
 
-        const updatedResult = await prisma.challengeResult.update({
-            where: { challenge_result_id: challengeResult.challenge_result_id },
-            data: {
-                score: { increment: is_correct ? 10 : -2 },
-                correct_answers: { increment: is_correct ? 1 : 0 },
-                wrong_answers: { increment: is_correct ? 0 : 1 },
-                total_time: { increment: time_spent }
-            }
-        })
+    if (!result) throw new Error('لا يوجد سجل')
 
-        return { success: true, currentScore: updatedResult.score }
-    } catch (error) {
-        return { success: false, error: error.message }
-    }
+    const { data } = await supabase
+      .from('challenge_results')
+      .update({
+        score: result.score + (is_correct ? 10 : -2),
+        correct_answers: result.correct_answers + (is_correct ? 1 : 0),
+        wrong_answers: result.wrong_answers + (is_correct ? 0 : 1),
+        total_time: result.total_time + time_spent
+      })
+      .eq('challenge_result_id', result.challenge_result_id)
+      .select()
+      .single()
+
+    return { success: true, currentScore: data.score }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 }
 
-// ***************************************************************
-// 6. إنهاء التحدي وتحديد الفائز
-// ***************************************************************
+// ===============================================================
+// 8. إنهاء التحدي
+// ===============================================================
 export async function finishChallenge(challenge_id) {
-    try {
-        const results = await prisma.challengeResult.findMany({
-            where: { challenge_id },
-            orderBy: { score: 'desc' }
-        })
+  try {
+    const supabase = createClient()
 
-        if (results.length < 2) return { success: false, error: 'البيانات غير كافية لإغلاق التحدي' }
+    const { data: results } = await supabase
+      .from('challenge_results')
+      .select('*')
+      .eq('challenge_id', challenge_id)
+      .order('score', { ascending: false })
 
-        // تحديد الفائز أو التعادل
-        let winner_id = null
-        if (results[0].score > results[1].score) {
-            winner_id = results[0].student_id
-        } else if (results[1].score > results[0].score) {
-            winner_id = results[1].student_id
-        }
-
-        await prisma.challenge.update({
-            where: { challenge_id },
-            data: {
-                status: CHALLENGE_STATUS.COMPLETED,
-                winner_id: winner_id,
-                end_time: new Date()
-            }
-        })
-
-        // تحديث نقاط الطالب الفائز وزيادة الـ Streak
-        if (winner_id) {
-            await prisma.student.update({
-                where: { student_id: winner_id },
-                data: { 
-                    total_score: { increment: 50 },
-                    current_streak: { increment: 1 }
-                }
-            })
-        }
-
-        revalidatePath('/challenges')
-        return { success: true, winner_id }
-    } catch (error) {
-        return { success: false, error: error.message }
+    if (!results || results.length < 2) {
+      return { success: false, error: 'بيانات غير كافية' }
     }
+
+    let winner_id = null
+    if (results[0].score > results[1].score) {
+      winner_id = results[0].student_id
+    } else if (results[1].score > results[0].score) {
+      winner_id = results[1].student_id
+    }
+
+    await supabase
+      .from('challenges')
+      .update({
+        status: CHALLENGE_STATUS.COMPLETED,
+        winner_id,
+        end_time: new Date()
+      })
+      .eq('challenge_id', challenge_id)
+
+    if (winner_id) {
+      const { data: student } = await supabase
+        .from('students')
+        .select('total_score, current_streak')
+        .eq('student_id', winner_id)
+        .single()
+
+      await supabase
+        .from('students')
+        .update({
+          total_score: (student.total_score || 0) + 50,
+          current_streak: (student.current_streak || 0) + 1
+        })
+        .eq('student_id', winner_id)
+    }
+
+    revalidatePath('/challenges')
+
+    return { success: true, winner_id }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 }
 
-// ***************************************************************
-// 7. البحث عن طلاب (Case-insensitive)
-// ***************************************************************
+// ===============================================================
+// 9. البحث عن الطلاب
+// ===============================================================
 export async function searchStudentsForChallenge(query) {
-    try {
-        const studentId = await getSessionStudentId()
-        const students = await prisma.student.findMany({
-            where: {
-                student_name: { contains: query },
-                NOT: { student_id: studentId }
-            },
-            select: {
-                student_id: true,
-                student_name: true,
-                total_score: true,
-                level: { select: { level_name: true, color: true } }
-            },
-            take: 10
-        })
-        return { success: true, data: students }
-    } catch (error) {
-        return { success: false, error: error.message }
-    }
+  try {
+    const studentId = await getSessionStudentId()
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+      .from('students')
+      .select('student_id, student_name, total_score')
+      .ilike('student_name', `%${query}%`)
+      .neq('student_id', studentId)
+      .limit(10)
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 }

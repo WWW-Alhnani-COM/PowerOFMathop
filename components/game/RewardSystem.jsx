@@ -1,7 +1,7 @@
 // RewardSystem.jsx
 import React from 'react';
 import { Star, Trophy, Zap } from 'lucide-react';
-import Badge from '../ui/Badge';
+import Badge from '@ui/Badge';
 
 const RewardSystem = ({ achievementType, pointsAwarded }) => {
   const typeMap = {

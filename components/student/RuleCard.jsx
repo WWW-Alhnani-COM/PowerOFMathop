@@ -1,6 +1,6 @@
 // RuleCard.jsx
-import Card from '../ui/Card';
-import Button from '../ui/Button';
+import Card from '@ui/Card';
+import Button from '@ui/Button';
 import { Zap, TrendingUp, HelpCircle } from 'lucide-react';
 
 const RuleCard = ({ ruleName, difficulty, status, onSelect }) => (

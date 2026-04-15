@@ -1,8 +1,8 @@
 // ChatWindow.jsx
 import React, { useState } from 'react';
-import ChatBubble from '../../student/ChatBubble';
-import Button from '../ui/Button';
-import Input from '../ui/Input';
+import ChatBubble from '@student/ChatBubble';
+import Button from '@ui/Button';
+import Input from '@ui/Input';
 import { Send } from 'lucide-react';
 
 const ChatWindow = ({ messages, currentStudentId, onSendMessage }) => {

@@ -7,7 +7,7 @@ import Header from '@/components/layout/Header';
 import { 
   getActiveLevelsWithStats, 
   getStudentProgress 
-} from '../../../actions/level.actions';
+} from '@actions/level.actions';
 
 export default function LevelsPage() {
   const router = useRouter();

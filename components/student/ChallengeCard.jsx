@@ -1,6 +1,6 @@
 // ChallengeCard.jsx
-import Card from '../ui/Card';
-import Button from '../ui/Button';
+import Card from '@ui/Card';
+import Button from '@ui/Button';
 import { Zap, Clock, Users, Trophy } from 'lucide-react';
 
 const ChallengeCard = ({ challenger, challenged, status, sheetName, timeLeft, winnerId, onAction }) => {

@@ -3,7 +3,7 @@
 
 import NextAuth from 'next-auth';
 import { PrismaAdapter } from '@auth/prisma-adapter'; 
-import { prisma } from '../lib/prisma'; // ⚠️ تأكد أن مسارك لملف prisma هو './lib/prisma'
+import { prisma } from '@lib/prisma'; // ⚠️ تأكد أن مسارك لملف prisma هو './lib/prisma'
 import GitHub from '@auth/core/providers/github'; 
 import Credentials from '@auth/core/providers/credentials'; 
 

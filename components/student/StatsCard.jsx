@@ -1,5 +1,5 @@
 // StatsCard.jsx
-import Card from '../ui/Card';
+import Card from '@ui/Card';
 import { Award, Zap, Clock, TrendingUp, Check, TrendingDown } from 'lucide-react';
 const iconMap = { points: Award, accuracy: Check, streak: Zap, time: Clock };
 const colorMap = { points: 'primary', accuracy: 'success', streak: 'warning', time: 'info' };

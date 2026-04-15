@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Trophy, Lock, Star, CheckCircle } from 'lucide-react';
-import ProgressBar from '../ui/ProgressBar'; // سيتم إنشاء هذا المكون لاحقاً
+import ProgressBar from '@ui/ProgressBar'; // سيتم إنشاء هذا المكون لاحقاً
 
 /**
  * @typedef {object} LevelCardProps

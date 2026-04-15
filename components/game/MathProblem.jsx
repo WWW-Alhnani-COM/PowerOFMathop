@@ -1,7 +1,7 @@
 // MathProblem.jsx
-import ProblemDisplay from '../student/ProblemDisplay';
-import NumberPad from '../student/NumberPad';
-import Timer from '../student/Timer';
+import ProblemDisplay from '@student/ProblemDisplay';
+import NumberPad from '@student/NumberPad';
+import Timer from '@student/Timer';
 import ProblemGenerator from './ProblemGenerator'; // سيتم استخدامه
 
 const MathProblem = ({ difficulty, rule, timeLimit, onCorrect, onWrong }) => {

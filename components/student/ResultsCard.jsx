@@ -1,5 +1,5 @@
 // ResultsCard.jsx
-import Card from '../ui/Card';
+import Card from '@ui/Card';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
 
 const ResultsCard = ({ score, correct, wrong, time, sheetName }) => (

@@ -1,5 +1,5 @@
 // PerformanceAnalysis.jsx
-import Card from '../ui/Card';
+import Card from '@ui/Card';
 import { Lightbulb, AlertTriangle } from 'lucide-react';
 
 const AnalysisItem = ({ rule, score, weakness }) => (

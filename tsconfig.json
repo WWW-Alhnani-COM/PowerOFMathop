@@ -23,7 +23,8 @@
   "@src/*": ["./src/*"],
   "@actions/*": ["./actions/*"],
   "@components/*": ["./components/*"],
-  "@lib/*": ["./lib/*"]
+  "@lib/*": ["./lib/*"],
+  "@utils/*": ["./utils/*"]
 }
   },
   "include": [

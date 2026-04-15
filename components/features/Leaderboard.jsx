@@ -1,7 +1,7 @@
 // Leaderboard.jsx
-import Card from '../ui/Card';
+import Card from '@ui/Card';
 import { Award, Star, TrendingUp } from 'lucide-react';
-import Badge from '../ui/Badge';
+import Badge from '@ui/Badge';
 
 const LeaderboardItem = ({ rank, name, score }) => (
   <li className={`flex items-center p-3 rounded-xl my-2 shadow-md ${rank === 1 ? 'bg-yellow-400/30 ring-2 ring-yellow-500' : 'bg-white'}`}>

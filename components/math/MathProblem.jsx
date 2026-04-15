@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Volume2, Repeat } from 'lucide-react'
-import Button from '../ui/Button'
+import Button from '@ui/Button'
 import { playSound } from '@/lib/sounds'
 
 const MathProblem = ({

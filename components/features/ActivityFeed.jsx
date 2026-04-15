@@ -1,5 +1,5 @@
 // ActivityFeed.jsx
-import Card from '../ui/Card';
+import Card from '@/ui/Card';
 import { ArrowRight, Trophy, Zap, BookOpen } from 'lucide-react';
 
 const ActivityItem = ({ icon: Icon, text, time, color }) => (

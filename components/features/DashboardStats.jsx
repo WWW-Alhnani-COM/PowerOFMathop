@@ -1,5 +1,5 @@
 // DashboardStats.jsx
-import StatsCard from '../../components/student/StatsCard';
+import StatsCard from '@components/student/StatsCard';
 
 const DashboardStats = ({ stats }) => (
   <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">

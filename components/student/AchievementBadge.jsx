@@ -1,5 +1,5 @@
 // AchievementBadge.jsx
-import Badge from '../ui/Badge';
+import Badge from '@ui/Badge';
 import { Star, Zap, Award } from 'lucide-react';
 
 const iconMap = { 'star': Star, 'zap': Zap, 'trophy': Award };

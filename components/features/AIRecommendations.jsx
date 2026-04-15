@@ -1,6 +1,6 @@
 // AIRecommendations.jsx
-import Card from '../ui/Card';
-import Button from '../ui/Button';
+import Card from '@ui/Card';
+import Button from '@ui/Button';
 import { Zap, Brain, ArrowRight } from 'lucide-react';
 
 const RecommendationItem = ({ rule, reason, confidence, onAction }) => (

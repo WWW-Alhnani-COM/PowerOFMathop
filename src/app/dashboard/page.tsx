@@ -5,8 +5,8 @@ import {
   getMonthlyProgress,
   getStudentGoals,
   getLearningSuggestions,
-} from "@/actions/dashboard.actions";
-import { getSessionStudentId } from "@/actions/auth.actions";
+} from "@actions/dashboard.actions";
+import { getSessionStudentId } from "@actions/auth.actions";
 import DashboardClient from "./DashboardClient";
 
 // (اختياري لكن يجمّل الـ types)

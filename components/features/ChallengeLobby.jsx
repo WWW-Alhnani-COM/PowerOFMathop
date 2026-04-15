@@ -1,8 +1,8 @@
 // ChallengeLobby.jsx
-import Card from '../ui/Card';
-import Button from '../ui/Button';
+import Card from '@ui/Card';
+import Button from '@ui/Button';
 import { Users, Clock, Check, Loader2 } from 'lucide-react';
-import Timer from '../../student/Timer';
+import Timer from '@student/Timer';
 
 const PlayerStatus = ({ name, isReady }) => (
   <div className="flex items-center justify-between p-3 bg-white rounded-lg shadow-md">

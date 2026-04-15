@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 // ⚠️ تأكد من صحة مسار الـ Actions
-import { getChatList, getUnreadCount } from '../../actions/chat.actions'; 
+import { getChatList, getUnreadCount } from '@/actions/chat.actions'; 
 
 // 🔑 يستلم ID الطالب كـ Prop من الـ Server Component
 const ChatListClient = ({ initialStudentId }) => { 

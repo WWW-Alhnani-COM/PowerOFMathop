@@ -1,7 +1,7 @@
 // src/app/layout.tsx
-import './globals.css';
+import "./globals.css";
 import { fontInter, fontFredoka } from './fonts';
-import MainLayout from '../../components/layout/MainLayout';
+import MainLayout from '@components/layout/MainLayout';
 
 export const metadata = {
   title: 'Power Of Math',

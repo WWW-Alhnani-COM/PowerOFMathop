@@ -1,7 +1,7 @@
 // ReportGenerator.jsx
-import Card from '../ui/Card';
-import Button from '../ui/Button';
-import Select from '../ui/Select';
+import Card from '@ui/Card';
+import Button from '@ui/Button';
+import Select from '@ui/Select';
 import { FileText, Download } from 'lucide-react';
 
 const ReportGenerator = ({ periods, onGenerate }) => {

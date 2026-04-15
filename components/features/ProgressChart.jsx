@@ -1,5 +1,5 @@
 // ProgressChart.jsx
-import Card from '../ui/Card';
+import Card from '@ui/Card';
 import { BarChart2 } from 'lucide-react';
 
 // ملاحظة: في تطبيق حقيقي، سيتم استخدام مكتبة رسوم بيانية مثل Recharts أو Chart.js هنا.

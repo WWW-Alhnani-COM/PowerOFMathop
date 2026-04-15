@@ -1,7 +1,7 @@
 // TutorialGuide.jsx
 import React, { useState } from 'react';
-import Modal from '../ui/Modal';
-import Button from '../ui/Button';
+import Modal from '@ui/Modal';
+import Button from '@ui/Button';
 import { HelpCircle, ChevronRight, ChevronLeft } from 'lucide-react';
 
 const TutorialGuide = ({ steps }) => {
