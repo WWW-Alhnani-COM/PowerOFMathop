@@ -23,7 +23,7 @@
       "@actions/*": ["./actions/*"],
       "@components/*": ["./components/*"],
       "@lib/*": ["./lib/*"],
-      "@utils/*": ["./src/utils/*"],
+      "@utils/*": ["./utils/*"],
       "@/*": [
         "./src/*",
         "./actions/*",
