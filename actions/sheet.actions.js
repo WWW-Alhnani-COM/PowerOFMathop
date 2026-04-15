@@ -1,10 +1,9 @@
 // src/actions/sheet.actions.js
-'use server';
 
-import { prisma } from '@/lib/prisma';
+'use server';
+import { createClient } from '@/utils/supabase/server';
 import { validateSession } from './auth.actions';
 
-// دالة عامة لتحويل كائنات Prisma (التي تحتوي Decimal/Date) إلى كائنات عادية
 function toPlain(data) {
   return data == null ? data : JSON.parse(JSON.stringify(data));
 }
@@ -14,45 +13,18 @@ function toPlain(data) {
 // ============================================
 export async function getSheetInfo(sheetId) {
   try {
-    const sheet = await prisma.sheet.findUnique({
-      where: {
-        sheet_id: parseInt(sheetId),
-      },
-      include: {
-        level: {
-          select: {
-            level_name: true,
-            color: true,
-            icon: true,
-          },
-        },
-        rule: {
-          select: {
-            rule_name: true,
-            description: true,
-            icon: true,
-          },
-        },
-      },
-    });
-
-    if (!sheet) {
-      return {
-        success: false,
-        error: 'الورقة غير موجودة',
-      };
+    const supabase = createClient((await validateSession()).cookieStore);
+    const { data: sheet, error } = await supabase
+      .from('sheets')
+      .select(`*, level:levels(level_name, color, icon), rule:rules(rule_name, description, icon)`)
+      .eq('sheet_id', Number(sheetId))
+      .single();
+    if (error || !sheet) {
+      return { success: false, error: 'الورقة غير موجودة' };
     }
-
-    return {
-      success: true,
-      data: toPlain(sheet),
-    };
+    return { success: true, data: toPlain(sheet) };
   } catch (error) {
-    console.error('خطأ في جلب معلومات الورقة:', error);
-    return {
-      success: false,
-      error: error.message || 'فشل جلب معلومات الورقة',
-    };
+    return { success: false, error: error.message || 'فشل جلب معلومات الورقة' };
   }
 }
 
@@ -61,90 +33,44 @@ export async function getSheetInfo(sheetId) {
 // ============================================
 export async function getStudentSheets(studentId) {
   try {
-    const student = await prisma.student.findUnique({
-      where: { student_id: parseInt(studentId) },
-      select: { current_level_id: true },
-    });
-
+    const supabase = createClient((await validateSession()).cookieStore);
+    const { data: student } = await supabase
+      .from('students')
+      .select('current_level_id')
+      .eq('student_id', Number(studentId))
+      .single();
     if (!student) {
-      return {
-        success: false,
-        error: 'الطالب غير موجود',
-      };
+      return { success: false, error: 'الطالب غير موجود' };
     }
-
-    const sheets = await prisma.sheet.findMany({
-      where: {
-        level_id: student.current_level_id,
-        is_active: true,
-      },
-      include: {
-        rule: {
-          select: {
-            rule_name: true,
-            icon: true,
-          },
-        },
-        level: {
-          select: {
-            level_name: true,
-            color: true,
-          },
-        },
-        _count: {
-          select: {
-            sheetResults: {
-              where: {
-                student_id: parseInt(studentId),
-                status: 'completed',
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        difficulty_level: 'asc',
-      },
+    const { data: sheets, error } = await supabase
+      .from('sheets')
+      .select(`*, rule:rules(rule_name, icon), level:levels(level_name, color)`)
+      .eq('level_id', student.current_level_id)
+      .eq('is_active', true)
+      .order('difficulty_level', { ascending: true });
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    const { data: results } = await supabase
+      .from('sheet_results')
+      .select('*')
+      .eq('student_id', Number(studentId));
+    const enriched = (sheets || []).map((sheet) => {
+      const latest = (results || [])
+        .filter(r => r.sheet_id === sheet.sheet_id)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+      const attempts = (results || []).filter(r => r.sheet_id === sheet.sheet_id).length;
+      return {
+        ...sheet,
+        student_status: latest?.status || 'not_started',
+        last_score: latest?.score || 0,
+        last_attempt: latest?.created_at || null,
+        attempts_count: attempts,
+      };
     });
-
-    // إضافة حالة التمرين للطالب
-    const sheetsWithStatus = await Promise.all(
-      sheets.map(async (sheet) => {
-        const latestResult = await prisma.sheetResult.findFirst({
-          where: {
-            student_id: parseInt(studentId),
-            sheet_id: sheet.sheet_id,
-          },
-          orderBy: {
-            created_at: 'desc',
-          },
-          select: {
-            status: true,
-            score: true,
-            created_at: true,
-          },
-        });
-
-        return {
-          ...sheet,
-          student_status: latestResult?.status || 'not_started',
-          last_score: latestResult?.score ?? 0,
-          last_attempt: latestResult?.created_at || null,
-          attempts_count: sheet._count.sheetResults,
-        };
-      })
-    );
-
-    return {
-      success: true,
-      data: toPlain(sheetsWithStatus),
-    };
+    return { success: true, data: toPlain(enriched) };
   } catch (error) {
-    console.error('خطأ في جلب أوراق الطالب:', error);
-    return {
-      success: false,
-      error: error.message || 'فشل جلب أوراق التمارين',
-    };
+    return { success: false, error: error.message || 'فشل جلب أوراق التمارين' };
   }
 }
 
@@ -157,17 +83,15 @@ export async function getStudentSheetResults(studentId, sheetIds) {
       sheetIds = [sheetIds];
     }
 
-    const results = await prisma.sheetResult.findMany({
-      where: {
-        student_id: parseInt(studentId),
-        sheet_id: {
-          in: sheetIds.map((id) => parseInt(id)),
-        },
-      },
-      orderBy: {
-        created_at: 'desc',
-      },
-    });
+    const supabase = createClient((await validateSession()).cookieStore);
+    const { data: results, error } = await supabase
+      .from('sheet_results')
+      .select('*')
+      .eq('student_id', Number(studentId))
+      .in('sheet_id', sheetIds.map(Number))
+      .order('created_at', { ascending: false });
+    if (error) return { success: false, error: error.message };
+    return { success: true, data: toPlain(results) };
 
     return {
       success: true,
@@ -196,33 +120,37 @@ export async function startNewSheet({ student_id, sheet_id }) {
       };
     }
 
+    const supabase = createClient(session.cookieStore);
     // التحقق من وجود الورقة
-    const sheet = await prisma.sheet.findUnique({
-      where: { sheet_id: parseInt(sheet_id) },
-      select: { total_problems: true },
-    });
-
-    if (!sheet) {
+    const { data: sheet, error: sheetError } = await supabase
+      .from('sheets')
+      .select('total_problems')
+      .eq('sheet_id', Number(sheet_id))
+      .single();
+    if (sheetError || !sheet) {
       return {
         success: false,
         error: 'الورقة غير موجودة',
       };
     }
-
     // إنشاء نتيجة جديدة
-    const sheetResult = await prisma.sheetResult.create({
-      data: {
-        student_id: parseInt(student_id),
-        sheet_id: parseInt(sheet_id),
-        start_time: new Date(),
+    const { data: sheetResult, error: resultError } = await supabase
+      .from('sheet_results')
+      .insert({
+        student_id: Number(student_id),
+        sheet_id: Number(sheet_id),
+        start_time: new Date().toISOString(),
         status: 'in_progress',
         total_correct: 0,
         total_wrong: 0,
         score: 0,
         accuracy: 0,
-      },
-    });
-
+      })
+      .select()
+      .single();
+    if (resultError) {
+      return { success: false, error: resultError.message };
+    }
     return {
       success: true,
       data: {
@@ -273,9 +201,15 @@ export async function startPracticeSession({
     }
 
     // التأكد أن القاعدة موجودة
-    const rule = await prisma.rule.findUnique({
-      where: { rule_id: ruleIdInt },
-    });
+    const supabase = createClient(session.cookieStore);
+    const { data: rule, error: ruleError } = await supabase
+      .from('rules')
+      .select('*')
+      .eq('rule_id', ruleIdInt)
+      .single();
+    if (ruleError) {
+      return { success: false, error: ruleError.message };
+    }
 
     if (!rule) {
       return {
@@ -292,32 +226,36 @@ export async function startPracticeSession({
         error: sheetRes.error || 'فشل تجهيز ورقة التدريب.',
       };
     }
-
     const sheet = sheetRes.data;
-
     // إنشاء SheetResult جديد للجلسة
-    const sheetResult = await prisma.sheetResult.create({
-      data: {
+    const { data: sheetResult, error: sheetResultError } = await supabase
+      .from('sheet_results')
+      .insert({
         student_id: studentIdInt,
         sheet_id: sheet.sheet_id,
-        start_time: new Date(),
+        start_time: new Date().toISOString(),
         status: 'in_progress',
         total_correct: 0,
         total_wrong: 0,
         score: 0,
         accuracy: 0,
-      },
-    });
+      })
+      .select()
+      .single();
+    if (sheetResultError) {
+      return { success: false, error: sheetResultError.message };
+    }
 
     // جلب أنواع المسائل المرتبطة بالقاعدة
-    const problemTypes = await prisma.problemType.findMany({
-      where: {
-        rule_id: ruleIdInt,
-        is_active: true,
-      },
-    });
-
-    if (problemTypes.length === 0) {
+    const { data: problemTypes, error: ptError } = await supabase
+      .from('problem_types')
+      .select('*')
+      .eq('rule_id', ruleIdInt)
+      .eq('is_active', true);
+    if (ptError) {
+      return { success: false, error: ptError.message };
+    }
+    if (!problemTypes || problemTypes.length === 0) {
       return {
         success: false,
         error:
@@ -459,8 +397,10 @@ export async function submitAnswer({
       }
     }
 
-    await prisma.answerDetail.create({
-      data: {
+    const supabase = createClient(session.cookieStore);
+    const { error: answerError } = await supabase
+      .from('answer_details')
+      .insert({
         result_id: resultIdInt,
         problem_type_id,
         problem_data:
@@ -472,8 +412,10 @@ export async function submitAnswer({
         time_spent: Math.floor(time_spent || 0),
         is_correct: isCorrect,
         sequence_number: sequence_number || 0,
-      },
-    });
+      });
+    if (answerError) {
+      return { success: false, error: answerError.message };
+    }
 
     return {
       success: true,
@@ -514,26 +456,25 @@ export async function finishPracticeSession({ result_id, student_id }) {
       };
     }
 
-    const sheetResult = await prisma.sheetResult.findUnique({
-      where: { result_id: resultIdInt },
-      select: {
-        result_id: true,
-        student_id: true,
-        sheet_id: true,
-        start_time: true,
-      },
-    });
-
-    if (!sheetResult || sheetResult.student_id !== studentIdInt) {
+    const supabase = createClient(session.cookieStore);
+    const { data: sheetResult, error: sheetResultError } = await supabase
+      .from('sheet_results')
+      .select('result_id, student_id, sheet_id, start_time')
+      .eq('result_id', resultIdInt)
+      .single();
+    if (sheetResultError || !sheetResult || sheetResult.student_id !== studentIdInt) {
       return {
         success: false,
         error: 'جلسة التدريب غير موجودة.',
       };
     }
-
-    const answers = await prisma.answerDetail.findMany({
-      where: { result_id: resultIdInt },
-    });
+    const { data: answers, error: answersError } = await supabase
+      .from('answer_details')
+      .select('*')
+      .eq('result_id', resultIdInt);
+    if (answersError) {
+      return { success: false, error: answersError.message };
+    }
 
     const totalCount = answers.length;
     const correctCount = answers.filter((a) => a.is_correct).length;
@@ -554,18 +495,23 @@ export async function finishPracticeSession({ result_id, student_id }) {
       );
     }
 
-    const updated = await prisma.sheetResult.update({
-      where: { result_id: resultIdInt },
-      data: {
-        end_time: new Date(),
+    const { data: updatedArr, error: updateError } = await supabase
+      .from('sheet_results')
+      .update({
+        end_time: new Date().toISOString(),
         total_correct: correctCount,
         total_wrong: totalCount - correctCount,
         total_time_spent: total_time,
         score: score,
         accuracy: accuracy,
         status: score >= 70 ? 'completed' : 'failed',
-      },
-    });
+      })
+      .eq('result_id', resultIdInt)
+      .select();
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+    const updated = Array.isArray(updatedArr) ? updatedArr[0] : updatedArr;
 
     // تحديث إحصائيات الطالب
     await updateStudentStats({
@@ -632,41 +578,50 @@ export async function saveSheetResult({
     const score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
     const accuracy = score;
 
-    const updatedResult = await prisma.sheetResult.update({
-      where: {
-        result_id: parseInt(result_id),
-        student_id: parseInt(student_id),
-        sheet_id: parseInt(sheet_id),
-      },
-      data: {
-        end_time: new Date(end_time),
+    const supabase = createClient(session.cookieStore);
+    const { data: updatedArr, error: updateError } = await supabase
+      .from('sheet_results')
+      .update({
+        end_time: new Date(end_time).toISOString(),
         total_correct: correctCount,
         total_wrong: totalCount - correctCount,
         total_time_spent: Math.floor(total_time),
         score: score,
         accuracy: accuracy,
         status: score >= 70 ? 'completed' : 'failed',
-      },
-    });
+      })
+      .eq('result_id', parseInt(result_id))
+      .eq('student_id', parseInt(student_id))
+      .eq('sheet_id', parseInt(sheet_id))
+      .select();
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+    const updatedResult = Array.isArray(updatedArr) ? updatedArr[0] : updatedArr;
 
     if (problems.length > 0) {
-      await prisma.answerDetail.createMany({
-        data: problems.map((problem) => ({
-          result_id: parseInt(result_id),
-          problem_type_id: problem.problem_type_id,
-          problem_data: JSON.stringify({
-            question: problem.question,
-            operands: problem.operands || {},
-            correct_answer: problem.correct_answer,
-            expected_time: problem.expected_time,
-          }),
-          user_answer: problem.user_answer || '',
-          correct_answer: problem.correct_answer || '',
-          time_spent: problem.time_spent || 0,
-          is_correct: problem.is_correct || false,
-          sequence_number: problem.sequence_number || 0,
-        })),
-      });
+      const { error: answerError } = await supabase
+        .from('answer_details')
+        .insert(
+          problems.map((problem) => ({
+            result_id: parseInt(result_id),
+            problem_type_id: problem.problem_type_id,
+            problem_data: JSON.stringify({
+              question: problem.question,
+              operands: problem.operands || {},
+              correct_answer: problem.correct_answer,
+              expected_time: problem.expected_time,
+            }),
+            user_answer: problem.user_answer || '',
+            correct_answer: problem.correct_answer || '',
+            time_spent: problem.time_spent || 0,
+            is_correct: problem.is_correct || false,
+            sequence_number: problem.sequence_number || 0,
+          }))
+        );
+      if (answerError) {
+        return { success: false, error: answerError.message };
+      }
     }
 
     await updateStudentStats({
@@ -718,31 +673,31 @@ async function updateStudentStats({
   score,
 }) {
   try {
-    const student = await prisma.student.findUnique({
-      where: { student_id: parseInt(student_id) },
-    });
-
-    if (!student) return;
-
+    const supabase = createClient();
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('*')
+      .eq('student_id', parseInt(student_id))
+      .single();
+    if (studentError || !student) return;
     let currentStreak = student.current_streak || 0;
     if (score >= 70) {
       currentStreak += 1;
     } else {
       currentStreak = 0;
     }
-
-    await prisma.student.update({
-      where: { student_id: parseInt(student_id) },
-      data: {
-        total_score: { increment: score },
-        total_correct_answers: { increment: correct_count },
-        total_wrong_answers: { increment: wrong_count },
-        total_time_spent: { increment: time_spent },
+    const { error: updateError } = await supabase
+      .from('students')
+      .update({
+        total_score: (student.total_score || 0) + score,
+        total_correct_answers: (student.total_correct_answers || 0) + correct_count,
+        total_wrong_answers: (student.total_wrong_answers || 0) + wrong_count,
+        total_time_spent: (student.total_time_spent || 0) + time_spent,
         current_streak: currentStreak,
         best_streak: Math.max(student.best_streak || 0, currentStreak),
-        updated_at: new Date(),
-      },
-    });
+        updated_at: new Date().toISOString(),
+      })
+      .eq('student_id', parseInt(student_id));
   } catch (error) {
     console.error('خطأ في تحديث إحصائيات الطالب:', error);
   }
@@ -759,38 +714,28 @@ async function updatePerformanceAnalytics({
   time_spent,
 }) {
   try {
-    const sheet = await prisma.sheet.findUnique({
-      where: { sheet_id: parseInt(sheet_id) },
-      select: { rule_id: true },
-    });
-
-    if (!sheet || !sheet.rule_id) return;
-
+    const supabase = createClient();
+    const { data: sheet, error: sheetError } = await supabase
+      .from('sheets')
+      .select('rule_id')
+      .eq('sheet_id', parseInt(sheet_id))
+      .single();
+    if (sheetError || !sheet || !sheet.rule_id) return;
     const ruleId = sheet.rule_id;
     const success = correct_count / total_count >= 0.7;
-
-    const existingAnalytic = await prisma.performanceAnalytic.findUnique({
-      where: {
-        student_id_rule_id: {
-          student_id: parseInt(student_id),
-          rule_id: ruleId,
-        },
-      },
-    });
-
+    const { data: existingAnalytic, error: analyticError } = await supabase
+      .from('performance_analytics')
+      .select('*')
+      .eq('student_id', parseInt(student_id))
+      .eq('rule_id', ruleId)
+      .single();
     if (existingAnalytic) {
       const newTotalAttempts = existingAnalytic.total_attempts + 1;
       const newCorrectAttempts =
         existingAnalytic.correct_attempts + (success ? 1 : 0);
-
-      await prisma.performanceAnalytic.update({
-        where: {
-          student_id_rule_id: {
-            student_id: parseInt(student_id),
-            rule_id: ruleId,
-          },
-        },
-        data: {
+      await supabase
+        .from('performance_analytics')
+        .update({
           total_attempts: newTotalAttempts,
           correct_attempts: newCorrectAttempts,
           average_time: calculateNewAverage(
@@ -803,26 +748,27 @@ async function updatePerformanceAnalytics({
             total_count,
             existingAnalytic.weakness_score
           ),
-          last_practiced: new Date(),
+          last_practiced: new Date().toISOString(),
           mastery_level: calculateMasteryLevel(
             newCorrectAttempts / newTotalAttempts
           ),
-          updated_at: new Date(),
-        },
-      });
+          updated_at: new Date().toISOString(),
+        })
+        .eq('student_id', parseInt(student_id))
+        .eq('rule_id', ruleId);
     } else {
-      await prisma.performanceAnalytic.create({
-        data: {
+      await supabase
+        .from('performance_analytics')
+        .insert({
           student_id: parseInt(student_id),
           rule_id: ruleId,
           total_attempts: 1,
           correct_attempts: success ? 1 : 0,
           average_time: time_spent,
           weakness_score: calculateWeaknessScore(correct_count, total_count, 0),
-          last_practiced: new Date(),
+          last_practiced: new Date().toISOString(),
           mastery_level: success ? 'beginner' : 'needs_practice',
-        },
-      });
+        });
     }
   } catch (error) {
     console.error('خطأ في تحديث تحليل الأداء:', error);
@@ -870,32 +816,18 @@ export async function getSheetResultDetails(resultId) {
       };
     }
 
-    const result = await prisma.sheetResult.findUnique({
-      where: {
-        result_id: parseInt(resultId),
-      },
-      include: {
-        sheet: {
-          include: {
-            rule: true,
-            level: true,
-          },
-        },
-        answerDetails: {
-          orderBy: {
-            sequence_number: 'asc',
-          },
-        },
-      },
-    });
-
-    if (!result) {
+    const supabase = createClient(session.cookieStore);
+    const { data: result, error } = await supabase
+      .from('sheet_results')
+      .select(`*, sheet:sheets(*, rule:rules(*), level:levels(*)), answer_details:answer_details(*)`)
+      .eq('result_id', parseInt(resultId))
+      .single();
+    if (error || !result) {
       return {
         success: false,
         error: 'النتيجة غير موجودة',
       };
     }
-
     return {
       success: true,
       data: toPlain(result),
@@ -914,34 +846,16 @@ export async function getSheetResultDetails(resultId) {
 // ============================================
 export async function getStudentPracticeHistory(studentId, limit = 20) {
   try {
-    const history = await prisma.sheetResult.findMany({
-      where: {
-        student_id: parseInt(studentId),
-      },
-      include: {
-        sheet: {
-          include: {
-            rule: {
-              select: {
-                rule_name: true,
-                icon: true,
-              },
-            },
-            level: {
-              select: {
-                level_name: true,
-                color: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        created_at: 'desc',
-      },
-      take: limit,
-    });
-
+    const supabase = createClient();
+    const { data: history, error } = await supabase
+      .from('sheet_results')
+      .select(`*, sheet:sheets(*, rule:rules(rule_name, icon), level:levels(level_name, color))`)
+      .eq('student_id', parseInt(studentId))
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) {
+      return { success: false, error: error.message };
+    }
     return {
       success: true,
       data: toPlain(history),
@@ -960,22 +874,18 @@ export async function getStudentPracticeHistory(studentId, limit = 20) {
 // ============================================
 export async function getTopSheetResults(sheetId, limit = 10) {
   try {
-    const topResults = await prisma.sheetResult.findMany({
-      where: {
-        sheet_id: parseInt(sheetId),
-        status: 'completed',
-      },
-      include: {
-        student: {
-          select: {
-            student_name: true,
-          },
-        },
-      },
-      orderBy: [{ score: 'desc' }, { total_time_spent: 'asc' }],
-      take: limit,
-    });
-
+    const supabase = createClient();
+    const { data: topResults, error } = await supabase
+      .from('sheet_results')
+      .select('*, student:students(student_name)')
+      .eq('sheet_id', parseInt(sheetId))
+      .eq('status', 'completed')
+      .order('score', { ascending: false })
+      .order('total_time_spent', { ascending: true })
+      .limit(limit);
+    if (error) {
+      return { success: false, error: error.message };
+    }
     return {
       success: true,
       data: toPlain(topResults),
@@ -1003,42 +913,42 @@ export async function retrySheet(resultId) {
       };
     }
 
-    const oldResult = await prisma.sheetResult.findUnique({
-      where: {
-        result_id: parseInt(resultId),
-      },
-      include: {
-        sheet: true,
-      },
-    });
-
-    if (!oldResult) {
+    const supabase = createClient(session.cookieStore);
+    const { data: oldResult, error: oldError } = await supabase
+      .from('sheet_results')
+      .select('*, sheet:sheets(*)')
+      .eq('result_id', parseInt(resultId))
+      .single();
+    if (oldError || !oldResult) {
       return {
         success: false,
         error: 'النتيجة الأصلية غير موجودة',
       };
     }
-
-    const newResult = await prisma.sheetResult.create({
-      data: {
+    const { data: newResult, error: newError } = await supabase
+      .from('sheet_results')
+      .insert({
         student_id: oldResult.student_id,
         sheet_id: oldResult.sheet_id,
-        start_time: new Date(),
+        start_time: new Date().toISOString(),
         status: 'in_progress',
         total_correct: 0,
         total_wrong: 0,
         score: 0,
         accuracy: 0,
-      },
-    });
-
+      })
+      .select()
+      .single();
+    if (newError) {
+      return { success: false, error: newError.message };
+    }
     return {
       success: true,
       data: {
         new_result_id: newResult.result_id,
         sheet_id: newResult.sheet_id,
         student_id: newResult.student_id,
-        total_problems: oldResult.sheet.total_problems || 0,
+        total_problems: oldResult.sheet?.total_problems || 0,
       },
     };
   } catch (error) {
@@ -1064,18 +974,21 @@ export async function deleteSheetResult(resultId) {
       };
     }
 
-    await prisma.answerDetail.deleteMany({
-      where: {
-        result_id: parseInt(resultId),
-      },
-    });
-
-    await prisma.sheetResult.delete({
-      where: {
-        result_id: parseInt(resultId),
-      },
-    });
-
+    const supabase = createClient(session.cookieStore);
+    const { error: answerError } = await supabase
+      .from('answer_details')
+      .delete()
+      .eq('result_id', parseInt(resultId));
+    if (answerError) {
+      return { success: false, error: answerError.message };
+    }
+    const { error: resultError } = await supabase
+      .from('sheet_results')
+      .delete()
+      .eq('result_id', parseInt(resultId));
+    if (resultError) {
+      return { success: false, error: resultError.message };
+    }
     return {
       success: true,
       message: 'تم حذف النتيجة بنجاح',
@@ -1103,24 +1016,15 @@ export async function exportSheetResults(studentId, format = 'json') {
       };
     }
 
-    const results = await prisma.sheetResult.findMany({
-      where: {
-        student_id: parseInt(studentId),
-      },
-      include: {
-        sheet: {
-          include: {
-            rule: true,
-            level: true,
-          },
-        },
-        answerDetails: true,
-      },
-      orderBy: {
-        created_at: 'desc',
-      },
-    });
-
+    const supabase = createClient(session.cookieStore);
+    const { data: results, error } = await supabase
+      .from('sheet_results')
+      .select('*, sheet:sheets(*, rule:rules(*), level:levels(*)), answer_details:answer_details(*)')
+      .eq('student_id', parseInt(studentId))
+      .order('created_at', { ascending: false });
+    if (error) {
+      return { success: false, error: error.message };
+    }
     if (format === 'json') {
       return {
         success: true,
@@ -1128,7 +1032,6 @@ export async function exportSheetResults(studentId, format = 'json') {
         format: 'json',
       };
     }
-
     return {
       success: false,
       error: 'التنسيق غير مدعوم حالياً',
@@ -1147,46 +1050,38 @@ export async function exportSheetResults(studentId, format = 'json') {
 // ============================================
 export async function getSheetStatistics(sheetId) {
   try {
-    const statistics = await prisma.sheetResult.groupBy({
-      by: ['status'],
-      where: {
-        sheet_id: parseInt(sheetId),
-      },
-      _count: true,
-      _avg: {
-        score: true,
-        total_time_spent: true,
-        accuracy: true,
-      },
+    const supabase = createClient();
+    const { data: statistics, error } = await supabase
+      .from('sheet_results')
+      .select('status, score, total_time_spent, accuracy')
+      .eq('sheet_id', parseInt(sheetId));
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    // Group by status manually
+    const grouped = {};
+    (statistics || []).forEach((stat) => {
+      if (!grouped[stat.status]) grouped[stat.status] = [];
+      grouped[stat.status].push(stat);
     });
-
-    const totalAttempts = statistics.reduce(
-      (sum, stat) => sum + stat._count,
-      0
-    );
-    const completedAttempts =
-      statistics.find((s) => s.status === 'completed')?._count || 0;
-
+    const totalAttempts = (statistics || []).length;
+    const completedAttempts = (grouped['completed'] || []).length;
     const averageScore =
       totalAttempts > 0
-        ? statistics.reduce(
-            (sum, stat) =>
-              sum + Number(stat._avg.score || 0) * stat._count,
-            0
-          ) / totalAttempts
+        ? Math.round(
+            (statistics || []).reduce((sum, stat) => sum + Number(stat.score || 0), 0) /
+              totalAttempts
+          )
         : 0;
-
     return {
       success: true,
       data: {
         total_attempts: totalAttempts,
         completed_attempts: completedAttempts,
         completion_rate:
-          totalAttempts > 0
-            ? (completedAttempts / totalAttempts) * 100
-            : 0,
-        average_score: Math.round(averageScore) || 0,
-        statistics_by_status: toPlain(statistics),
+          totalAttempts > 0 ? (completedAttempts / totalAttempts) * 100 : 0,
+        average_score: averageScore,
+        statistics_by_status: toPlain(grouped),
       },
     };
   } catch (error) {
@@ -1203,15 +1098,13 @@ export async function getSheetStatistics(sheetId) {
 // ============================================
 export async function getStudentProgressInRule(studentId, ruleId) {
   try {
-    const progress = await prisma.performanceAnalytic.findUnique({
-      where: {
-        student_id_rule_id: {
-          student_id: parseInt(studentId),
-          rule_id: parseInt(ruleId),
-        },
-      },
-    });
-
+    const supabase = createClient();
+    const { data: progress, error } = await supabase
+      .from('performance_analytics')
+      .select('*')
+      .eq('student_id', parseInt(studentId))
+      .eq('rule_id', parseInt(ruleId))
+      .single();
     if (!progress) {
       return {
         success: true,
@@ -1223,7 +1116,6 @@ export async function getStudentProgressInRule(studentId, ruleId) {
         },
       };
     }
-
     return {
       success: true,
       data: toPlain(progress),
@@ -1242,26 +1134,18 @@ export async function getStudentProgressInRule(studentId, ruleId) {
 // ============================================
 export async function getStudentBestResults(studentId, limit = 5) {
   try {
-    const bestResults = await prisma.sheetResult.findMany({
-      where: {
-        student_id: parseInt(studentId),
-        status: 'completed',
-      },
-      include: {
-        sheet: {
-          include: {
-            rule: {
-              select: {
-                rule_name: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: [{ score: 'desc' }, { total_time_spent: 'asc' }],
-      take: limit,
-    });
-
+    const supabase = createClient();
+    const { data: bestResults, error } = await supabase
+      .from('sheet_results')
+      .select('*, sheet:sheets(*, rule:rules(rule_name))')
+      .eq('student_id', parseInt(studentId))
+      .eq('status', 'completed')
+      .order('score', { ascending: false })
+      .order('total_time_spent', { ascending: true })
+      .limit(limit);
+    if (error) {
+      return { success: false, error: error.message };
+    }
     return {
       success: true,
       data: toPlain(bestResults),
@@ -1280,19 +1164,14 @@ export async function getStudentBestResults(studentId, limit = 5) {
 // ============================================
 export async function hasStudentCompletedSheet(studentId, sheetId) {
   try {
-    const completedResult = await prisma.sheetResult.findFirst({
-      where: {
-        student_id: parseInt(studentId),
-        sheet_id: parseInt(sheetId),
-        status: 'completed',
-      },
-      select: {
-        result_id: true,
-        score: true,
-        created_at: true,
-      },
-    });
-
+    const supabase = createClient();
+    const { data: completedResult, error } = await supabase
+      .from('sheet_results')
+      .select('result_id, score, created_at')
+      .eq('student_id', parseInt(studentId))
+      .eq('sheet_id', parseInt(sheetId))
+      .eq('status', 'completed')
+      .maybeSingle();
     return {
       success: true,
       data: {
@@ -1314,56 +1193,42 @@ export async function hasStudentCompletedSheet(studentId, sheetId) {
 // ============================================
 export async function getSuggestedSheets(studentId, limit = 3) {
   try {
-    const student = await prisma.student.findUnique({
-      where: { student_id: parseInt(studentId) },
-      select: { current_level_id: true },
-    });
-
-    if (!student) {
+    const supabase = createClient();
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('current_level_id')
+      .eq('student_id', parseInt(studentId))
+      .single();
+    if (studentError || !student) {
       return {
         success: false,
         error: 'الطالب غير موجود',
       };
     }
-
-    const weakRules = await prisma.performanceAnalytic.findMany({
-      where: {
-        student_id: parseInt(studentId),
-        weakness_score: { gt: 0.5 },
-      },
-      orderBy: {
-        weakness_score: 'desc',
-      },
-      take: 2,
-    });
-
+    const { data: weakRules, error: weakError } = await supabase
+      .from('performance_analytics')
+      .select('*')
+      .eq('student_id', parseInt(studentId))
+      .gt('weakness_score', 0.5)
+      .order('weakness_score', { ascending: false })
+      .limit(2);
+    if (weakError) {
+      return { success: false, error: weakError.message };
+    }
     let suggestedSheets = [];
-
-    if (weakRules.length > 0) {
+    if (weakRules && weakRules.length > 0) {
       for (const rule of weakRules) {
-        const sheets = await prisma.sheet.findMany({
-          where: {
-            rule_id: rule.rule_id,
-            level_id: student.current_level_id,
-            is_active: true,
-            difficulty_level: { lte: 2 },
-          },
-          take: 2,
-        });
-        suggestedSheets.push(...sheets);
+        const { data: sheets, error: sheetError } = await supabase
+          .from('sheets')
+          .select('*')
+          .eq('rule_id', rule.rule_id)
+          .eq('is_active', true)
+          .order('difficulty_level', { ascending: true })
+          .limit(1);
+        if (sheetError || !sheets || sheets.length === 0) continue;
+        suggestedSheets.push(sheets[0]);
       }
     }
-
-    if (suggestedSheets.length === 0) {
-      suggestedSheets = await prisma.sheet.findMany({
-        where: {
-          level_id: student.current_level_id,
-          is_active: true,
-        },
-        take: limit,
-      });
-    }
-
     return {
       success: true,
       data: toPlain(suggestedSheets.slice(0, limit)),
@@ -1382,65 +1247,53 @@ export async function getSuggestedSheets(studentId, limit = 3) {
 // ============================================
 export async function getStudentSheetsProgress(studentId, ruleId) {
   try {
-    const ruleExists = await prisma.rule.findUnique({
-      where: { rule_id: parseInt(ruleId) },
-    });
-
-    if (!ruleExists) {
+    const supabase = createClient();
+    const { data: ruleExists, error: ruleError } = await supabase
+      .from('rules')
+      .select('*')
+      .eq('rule_id', parseInt(ruleId))
+      .single();
+    if (ruleError || !ruleExists) {
       return {
         success: false,
         error: 'القاعدة غير موجودة',
       };
     }
-
-    const sheets = await prisma.sheet.findMany({
-      where: {
-        rule_id: parseInt(ruleId),
-        is_active: true,
-      },
-      include: {
-        level: { select: { level_name: true, color: true } },
-        rule: { select: { rule_name: true, icon: true } },
-      },
-      orderBy: [{ difficulty_level: 'asc' }, { sheet_id: 'asc' }],
-    });
-
-    const sheetIds = sheets.map((sheet) => sheet.sheet_id);
-
-    const results = await prisma.sheetResult.findMany({
-      where: {
-        student_id: parseInt(studentId),
-        sheet_id: { in: sheetIds },
-      },
-      select: {
-        sheet_id: true,
-        status: true,
-        score: true,
-        total_time_spent: true,
-        created_at: true,
-      },
-    });
-
-    let totalSheets = sheets.length;
+    const { data: sheets, error: sheetsError } = await supabase
+      .from('sheets')
+      .select('*, level:levels(level_name, color), rule:rules(rule_name, icon)')
+      .eq('rule_id', parseInt(ruleId))
+      .eq('is_active', true)
+      .order('difficulty_level', { ascending: true })
+      .order('sheet_id', { ascending: true });
+    if (sheetsError) {
+      return { success: false, error: sheetsError.message };
+    }
+    const sheetIds = (sheets || []).map((sheet) => sheet.sheet_id);
+    const { data: results, error: resultsError } = await supabase
+      .from('sheet_results')
+      .select('sheet_id, status, score, total_time_spent, created_at')
+      .eq('student_id', parseInt(studentId))
+      .in('sheet_id', sheetIds);
+    if (resultsError) {
+      return { success: false, error: resultsError.message };
+    }
+    let totalSheets = (sheets || []).length;
     let completedSheets = 0;
     let totalPoints = 0;
-
-    sheets.forEach((sheet) => {
-      const result = results.find((r) => r.sheet_id === sheet.sheet_id);
+    (sheets || []).forEach((sheet) => {
+      const result = (results || []).find((r) => r.sheet_id === sheet.sheet_id);
       if (result?.status === 'completed') {
         completedSheets++;
         totalPoints += Number(result.score || 0);
       }
     });
-
-    const hasProblemTypes =
-      (await prisma.problemType.count({
-        where: {
-          rule_id: parseInt(ruleId),
-          is_active: true,
-        },
-      })) > 0;
-
+    const { count: problemTypeCount } = await supabase
+      .from('problem_types')
+      .select('*', { count: 'exact', head: true })
+      .eq('rule_id', parseInt(ruleId))
+      .eq('is_active', true);
+    const hasProblemTypes = (problemTypeCount || 0) > 0;
     return {
       success: true,
       data: toPlain({
@@ -1459,9 +1312,9 @@ export async function getStudentSheetsProgress(studentId, ruleId) {
         canPractice: hasProblemTypes,
         hasProblemTypes,
         ruleInfo: ruleExists,
-        sheets: sheets.map((sheet) => ({
+        sheets: (sheets || []).map((sheet) => ({
           ...sheet,
-          result: results.find((r) => r.sheet_id === sheet.sheet_id) || null,
+          result: (results || []).find((r) => r.sheet_id === sheet.sheet_id) || null,
         })),
       }),
     };
@@ -1479,42 +1332,48 @@ export async function getStudentSheetsProgress(studentId, ruleId) {
 // ============================================
 export async function createAutoSheetIfNeeded(ruleId, studentId) {
   try {
-    const existingSheets = await prisma.sheet.findMany({
-      where: {
-        rule_id: parseInt(ruleId),
-        is_active: true,
-      },
-      take: 1,
-    });
-
-    if (existingSheets.length === 0) {
-      const rule = await prisma.rule.findUnique({
-        where: { rule_id: parseInt(ruleId) },
-        select: { rule_name: true },
-      });
-
-      const autoSheet = await prisma.sheet.create({
-        data: {
+    const supabase = createClient();
+    const { data: existingSheets, error: sheetsError } = await supabase
+      .from('sheets')
+      .select('*')
+      .eq('rule_id', parseInt(ruleId))
+      .eq('is_active', true)
+      .limit(1);
+    if (sheetsError) {
+      return { success: false, error: sheetsError.message };
+    }
+    if (!existingSheets || existingSheets.length === 0) {
+      const { data: rule, error: ruleError } = await supabase
+        .from('rules')
+        .select('rule_name')
+        .eq('rule_id', parseInt(ruleId))
+        .single();
+      if (ruleError) {
+        return { success: false, error: ruleError.message };
+      }
+      const { data: autoSheet, error: createError } = await supabase
+        .from('sheets')
+        .insert({
           sheet_name: `${rule?.rule_name || 'تدريب'} تلقائي`,
-          level_id: 1, // مستوى افتراضي - يمكنك تعديله حسب منطقك
+          level_id: 1,
           rule_id: parseInt(ruleId),
           total_problems: 20,
           time_limit: 600,
           required_score: 70,
           difficulty_level: 1,
           is_active: true,
-          // لو أضفت حقل is_auto_generated في الـ schema يمكنك استخدامه هنا
-          // is_auto_generated: true,
-        },
-      });
-
+        })
+        .select()
+        .single();
+      if (createError) {
+        return { success: false, error: createError.message };
+      }
       return {
         success: true,
         data: toPlain(autoSheet),
         isAutoGenerated: true,
       };
     }
-
     return {
       success: true,
       data: toPlain(existingSheets[0]),

@@ -1,94 +1,112 @@
-// src/actions/student.actions.js
+
 'use server';
 
-import { prisma } from '@/lib/prisma';
+import { createClient } from '@/utils/supabase/server';
+import { cookies } from 'next/headers';
+
+// ==========================
+// Helper
+// ==========================
+async function supabase() {
+  return createClient(cookies());
+}
+
+function toPlain(data) {
+  return data == null ? data : JSON.parse(JSON.stringify(data));
+}
 
 // ============================================================
 // 1. تسجيل طالب جديد
 // ============================================================
 export async function registerStudent(studentName, branchId = null) {
-  // 🔒 التحقق من صحة المدخلات
-  if (!studentName || typeof studentName !== 'string' || studentName.trim().length < 2) {
-    return { success: false, error: 'يجب أن يكون اسم الطالب صالحاً ويتكون من حرفين على الأقل.' };
+  if (!studentName || studentName.trim().length < 2) {
+    return {
+      success: false,
+      error: 'يجب أن يكون اسم الطالب صالحاً ويتكون من حرفين على الأقل.',
+    };
   }
 
   const name = studentName.trim();
 
   try {
-    // 🔍 التحقق من التفرد: اسم + فرع
-    const existing = await prisma.student.findFirst({
-      where: {
-        student_name: name,
-        branch_id: branchId, // null مسموح (طلاب بدون فرع)
-      },
-    });
+    const sb = await supabase();
+
+    // التحقق من التكرار
+    const { data: existing } = await sb
+      .from('students')
+      .select('student_id')
+      .eq('student_name', name)
+      .eq('branch_id', branchId)
+      .maybeSingle();
 
     if (existing) {
-      return { success: false, error: 'هذا الاسم مستخدم مسبقاً في نفس الفرع.' };
+      return {
+        success: false,
+        error: 'هذا الاسم مستخدم مسبقاً في نفس الفرع.',
+      };
     }
 
-    // ✅ إنشاء الطالب
-    const newStudent = await prisma.student.create({
-      data: {
+    const { data, error } = await sb
+      .from('students')
+      .insert({
         student_name: name,
-        branch_id: branchId ? parseInt(branchId) : null,
-        current_level_id: 1, // المستوى الافتراضي
+        branch_id: branchId ? Number(branchId) : null,
+        current_level_id: 1,
         preferred_language: 'ar',
         status: 'active',
-      },
-      select: {
-        student_id: true,
-        student_name: true,
-        branch_id: true,
-        current_level_id: true,
-        created_at: true,
-      },
-    });
+      })
+      .select('student_id, student_name, branch_id, current_level_id, created_at')
+      .single();
 
-    return { success: true, data: newStudent };
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data: toPlain(data) };
   } catch (error) {
-    console.error('Error in registerStudent:', error);
-    return { success: false, error: 'فشل إنشاء الحساب. حاول مرة أخرى.' };
+    return { success: false, error: error.message };
   }
 }
 
 // ============================================================
-// 2. جلب بيانات طالب حسب المعرف
+// 2. جلب طالب
 // ============================================================
 export async function getStudentById(studentId) {
-  const id = parseInt(studentId);
+  const id = Number(studentId);
   if (isNaN(id)) {
     return { success: false, error: 'معرف طالب غير صالح.' };
   }
 
   try {
-    const student = await prisma.student.findUnique({
-      where: { student_id: id },
-      select: {
-        student_id: true,
-        student_name: true,
-        branch_id: true,
-        current_level_id: true,
-        preferred_language: true,
-        total_score: true,
-        current_streak: true,
-        best_streak: true,
-        status: true,
-        created_at: true,
-        updated_at: true,
-        branch: { select: { branch_name: true } },
-        level: { select: { level_name: true, color: true, icon: true } },
-      },
-    });
+    const sb = await supabase();
 
-    if (!student) {
+    const { data, error } = await sb
+      .from('students')
+      .select(`
+        student_id,
+        student_name,
+        branch_id,
+        current_level_id,
+        preferred_language,
+        total_score,
+        current_streak,
+        best_streak,
+        status,
+        created_at,
+        updated_at,
+        branches:branches(branch_name),
+        levels:levels(level_name, color, icon)
+      `)
+      .eq('student_id', id)
+      .single();
+
+    if (error || !data) {
       return { success: false, error: 'الطالب غير موجود.' };
     }
 
-    return { success: true, data: student };
+    return { success: true, data: toPlain(data) };
   } catch (error) {
-    console.error('Error in getStudentById:', error);
-    return { success: false, error: 'فشل جلب بيانات الطالب.' };
+    return { success: false, error: error.message };
   }
 }
 
@@ -96,51 +114,56 @@ export async function getStudentById(studentId) {
 // 3. تحديث اسم الطالب
 // ============================================================
 export async function updateStudentName(studentId, newName) {
-  const id = parseInt(studentId);
+  const id = Number(studentId);
+
   if (isNaN(id)) {
     return { success: false, error: 'معرف طالب غير صالح.' };
   }
 
   if (!newName || newName.trim().length < 2) {
-    return { success: false, error: 'الاسم الجديد يجب أن يتكون من حرفين على الأقل.' };
+    return { success: false, error: 'الاسم غير صالح.' };
   }
 
   const name = newName.trim();
 
   try {
-    // 🔍 التحقق من التفرد في نفس الفرع
-    const currentStudent = await prisma.student.findUnique({
-      where: { student_id: id },
-      select: { branch_id: true },
-    });
+    const sb = await supabase();
 
-    if (!currentStudent) {
-      return { success: false, error: 'الطالب غير موجود.' };
-    }
+    const { data: current } = await sb
+      .from('students')
+      .select('branch_id')
+      .eq('student_id', id)
+      .single();
 
-    const existing = await prisma.student.findFirst({
-      where: {
-        student_name: name,
-        branch_id: currentStudent.branch_id,
-        student_id: { not: id },
-      },
-    });
+    const { data: existing } = await sb
+      .from('students')
+      .select('student_id')
+      .eq('student_name', name)
+      .eq('branch_id', current?.branch_id)
+      .neq('student_id', id)
+      .maybeSingle();
 
     if (existing) {
-      return { success: false, error: 'هذا الاسم مستخدم مسبقاً في نفس الفرع.' };
+      return {
+        success: false,
+        error: 'هذا الاسم مستخدم مسبقاً في نفس الفرع.',
+      };
     }
 
-    // ✅ التحديث
-    const updated = await prisma.student.update({
-      where: { student_id: id },
-      data: { student_name: name },
-      select: { student_id: true, student_name: true },
-    });
+    const { data, error } = await sb
+      .from('students')
+      .update({ student_name: name })
+      .eq('student_id', id)
+      .select('student_id, student_name')
+      .single();
 
-    return { success: true, data: updated };
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data: toPlain(data) };
   } catch (error) {
-    console.error('Error in updateStudentName:', error);
-    return { success: false, error: 'فشل تحديث الاسم.' };
+    return { success: false, error: error.message };
   }
 }
 
@@ -148,112 +171,129 @@ export async function updateStudentName(studentId, newName) {
 // 4. تحديث فرع الطالب
 // ============================================================
 export async function updateStudentBranch(studentId, branchId) {
-  const id = parseInt(studentId);
-  const branch = branchId ? parseInt(branchId) : null;
+  const id = Number(studentId);
+  const branch = branchId ? Number(branchId) : null;
 
   if (isNaN(id)) {
-    return { success: false, error: 'معرف طالب غير صالح.' };
+    return { success: false, error: 'معرف الطالب غير صالح.' };
   }
 
   try {
-    // إذا كان branchId مقدم، تحقق من وجوده
-    if (branch !== null) {
-      const existingBranch = await prisma.branch.findUnique({
-        where: { branch_id: branch },
-      });
-      if (!existingBranch) {
-        return { success: false, error: 'الفرع المحدد غير موجود.' };
+    const sb = await supabase();
+
+    if (branch) {
+      const { data: branchExists } = await sb
+        .from('branches')
+        .select('branch_id')
+        .eq('branch_id', branch)
+        .maybeSingle();
+
+      if (!branchExists) {
+        return { success: false, error: 'الفرع غير موجود.' };
       }
     }
 
-    const updated = await prisma.student.update({
-      where: { student_id: id },
-      data: { branch_id: branch },
-      select: {
-        student_id: true,
-        student_name: true,
-        branch_id: true,
-        branch: { select: { branch_name: true } },
-      },
-    });
+    const { data, error } = await sb
+      .from('students')
+      .update({ branch_id: branch })
+      .eq('student_id', id)
+      .select(`
+        student_id,
+        student_name,
+        branch_id,
+        branches:branches(branch_name)
+      `)
+      .single();
 
-    return { success: true, data: updated };
-  } catch (error) {
-    console.error('Error in updateStudentBranch:', error);
-    return { success: false, error: 'فشل تحديث الفرع.' };
-  }
-}
-
-// ============================================================
-// 5. تحديث المستوى الحالي للطالب
-// ============================================================
-export async function updateStudentLevel(studentId, levelId) {
-  const id = parseInt(studentId);
-  const level = parseInt(levelId);
-
-  if (isNaN(id) || isNaN(level)) {
-    return { success: false, error: 'معرف الطالب أو المستوى غير صالح.' };
-  }
-
-  try {
-    // التحقق من وجود المستوى
-    const existingLevel = await prisma.level.findUnique({
-      where: { level_id: level },
-      select: { level_id: true, is_active: true },
-    });
-
-    if (!existingLevel || !existingLevel.is_active) {
-      return { success: false, error: 'المستوى غير موجود أو غير مفعل.' };
+    if (error) {
+      return { success: false, error: error.message };
     }
 
-    const updated = await prisma.student.update({
-      where: { student_id: id },
-      data: { current_level_id: level },
-      select: {
-        student_id: true,
-        student_name: true,
-        current_level_id: true,
-        level: { select: { level_name: true } },
-      },
-    });
-
-    return { success: true, data: updated };
+    return { success: true, data: toPlain(data) };
   } catch (error) {
-    console.error('Error in updateStudentLevel:', error);
-    return { success: false, error: 'فشل تحديث المستوى.' };
+    return { success: false, error: error.message };
   }
 }
 
 // ============================================================
-// 6. جلب إحصائيات الطالب (لواجهة الطفل)
+// 5. تحديث المستوى
 // ============================================================
-export async function getStudentStats(studentId) {
-  const id = parseInt(studentId);
-  if (isNaN(id)) {
-    return { success: false, error: 'معرف طالب غير صالح.' };
+export async function updateStudentLevel(studentId, levelId) {
+  const id = Number(studentId);
+  const level = Number(levelId);
+
+  if (isNaN(id) || isNaN(level)) {
+    return { success: false, error: 'بيانات غير صالحة.' };
   }
 
   try {
-    const student = await prisma.student.findUnique({
-      where: { student_id: id },
-      select: {
-        student_name: true,
-        total_score: true,
-        current_streak: true,
-        best_streak: true,
-        total_correct_answers: true,
-        total_wrong_answers: true,
-        total_time_spent: true,
-      },
-    });
+    const sb = await supabase();
 
-    if (!student) {
+    const { data: levelData } = await sb
+      .from('levels')
+      .select('level_id, is_active')
+      .eq('level_id', level)
+      .single();
+
+    if (!levelData || !levelData.is_active) {
+      return { success: false, error: 'المستوى غير متاح.' };
+    }
+
+    const { data, error } = await sb
+      .from('students')
+      .update({ current_level_id: level })
+      .eq('student_id', id)
+      .select(`
+        student_id,
+        student_name,
+        current_level_id,
+        levels:levels(level_name)
+      `)
+      .single();
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data: toPlain(data) };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// ============================================================
+// 6. إحصائيات الطالب
+// ============================================================
+export async function getStudentStats(studentId) {
+  const id = Number(studentId);
+
+  if (isNaN(id)) {
+    return { success: false, error: 'معرف غير صالح.' };
+  }
+
+  try {
+    const sb = await supabase();
+
+    const { data, error } = await sb
+      .from('students')
+      .select(`
+        student_name,
+        total_score,
+        current_streak,
+        best_streak,
+        total_correct_answers,
+        total_wrong_answers,
+        total_time_spent
+      `)
+      .eq('student_id', id)
+      .single();
+
+    if (error || !data) {
       return { success: false, error: 'الطالب غير موجود.' };
     }
 
-    return { success: true, data: student };
+    return { success: true, data: toPlain(data) };
   } catch (error) {
-    console.error('Error in getStudentStats:', error);
-    return { success: false, error: 'فشل جلب الإحصائيات.' };
+    return { success: false, error: error.message };
   }
 }

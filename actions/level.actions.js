@@ -1,246 +1,249 @@
-// src/actions/level.actions.js
 'use server';
 
-import { prisma } from '@/lib/prisma';
+import { createClient } from '@/utils/supabase/server';
 
-// جلب جميع المستويات النشطة مع إحصائيات
+const supabase = createClient();
+
+// ======================================================
+// 1. المستويات مع الإحصائيات
+// ======================================================
 export async function getActiveLevelsWithStats(studentId = null) {
   try {
-    // جلب المستويات
-    const levels = await prisma.level.findMany({
-      where: { is_active: true },
-      orderBy: { level_order: 'asc' },
-      select: {
-        level_id: true,
-        level_name: true,
-        description: true,
-        color: true,
-        icon: true,
-        level_order: true,
-        _count: {
-          select: {
-            levelRules: true,
-            sheets: true,
-          }
-        }
-      }
-    });
+    // المستويات
+    const { data: levels } = await supabase
+      .from('level')
+      .select(`
+        level_id,
+        level_name,
+        description,
+        color,
+        icon,
+        level_order,
+        levelRules:level_rule(count),
+        sheets:sheet(count)
+      `)
+      .eq('is_active', true)
+      .order('level_order', { ascending: true });
 
-    // إذا كان هناك طالب، نجلب تقدمه
-    let studentProgress = [];
-    if (studentId) {
-      studentProgress = await prisma.sheetResult.groupBy({
-        by: ['sheet_id'],
-        where: {
-          student_id: parseInt(studentId),
-          status: 'completed'
-        },
-        _count: {
-          result_id: true
-        }
-      });
+    if (!levels) {
+      return { success: false, error: 'لا توجد مستويات' };
     }
 
-    // دمج البيانات
-    const levelsWithStats = await Promise.all(levels.map(async (level) => {
-      // جلب عدد الطلاب في هذا المستوى
-      const studentCount = await prisma.student.count({
-        where: { current_level_id: level.level_id }
-      });
+    let completedByStudent = [];
 
-      // حساب عدد التمارين المكتملة للطالب
-      const completedSheets = studentId ? 
-        await prisma.sheetResult.count({
-          where: {
-            student_id: parseInt(studentId),
-            sheet: {
-              level_id: level.level_id
-            },
-            status: 'completed'
-          }
-        }) : 0;
+    // تقدم الطالب (اختياري)
+    if (studentId) {
+      const { data } = await supabase
+        .from('sheet_result')
+        .select('sheet_id')
+        .eq('student_id', Number(studentId))
+        .eq('status', 'completed');
 
-      return {
-        ...level,
-        stats: {
-          total_rules: level._count.levelRules,
-          total_sheets: level._count.sheets,
-          total_students: studentCount,
-          student_completed_sheets: completedSheets,
-          progress_percentage: level._count.sheets > 0 ? 
-            Math.round((completedSheets / level._count.sheets) * 100) : 0
+      completedByStudent = data || [];
+    }
+
+    const levelsWithStats = await Promise.all(
+      levels.map(async (level) => {
+        // عدد الطلاب في المستوى
+        const { count: studentCount } = await supabase
+          .from('student')
+          .select('*', { count: 'exact', head: true })
+          .eq('current_level_id', level.level_id);
+
+        // عدد التمارين المكتملة للطالب داخل هذا المستوى
+        let completedSheets = 0;
+
+        if (studentId) {
+          const { count } = await supabase
+            .from('sheet_result')
+            .select('*', { count: 'exact', head: true })
+            .eq('student_id', Number(studentId))
+            .eq('status', 'completed');
+
+          completedSheets = count || 0;
         }
-      };
-    }));
 
-    return { 
-      success: true, 
+        const totalSheets = level.sheets?.[0]?.count || 0;
+
+        return {
+          ...level,
+          stats: {
+            total_rules: level.levelRules?.[0]?.count || 0,
+            total_sheets: totalSheets,
+            total_students: studentCount || 0,
+            student_completed_sheets: completedSheets,
+            progress_percentage: totalSheets
+              ? Math.round((completedSheets / totalSheets) * 100)
+              : 0,
+          },
+        };
+      })
+    );
+
+    return {
+      success: true,
       data: levelsWithStats,
-      totalLevels: levels.length
+      totalLevels: levels.length,
     };
   } catch (error) {
-    console.error('Error in getActiveLevelsWithStats:', error);
-    return { 
-      success: false, 
-      error: 'فشل جلب المستويات.' 
-    };
+    return { success: false, error: 'فشل جلب المستويات' };
   }
 }
 
-// جلب تقدم الطالب الحالي
+// ======================================================
+// 2. تقدم الطالب
+// ======================================================
 export async function getStudentProgress(studentId) {
+  const id = Number(studentId);
+  if (!id) return { success: false, error: 'studentId غير صالح' };
+
   try {
-    const student = await prisma.student.findUnique({
-      where: { student_id: parseInt(studentId) },
-      select: {
-        student_name: true,
-        total_score: true,
-        current_streak: true,
-        best_streak: true,
-        total_correct_answers: true,
-        total_wrong_answers: true,
-        level: {
-          select: {
-            level_name: true,
-            level_order: true
-          }
-        }
-      }
-    });
+    const { data: student } = await supabase
+      .from('student')
+      .select(`
+        student_name,
+        total_score,
+        current_streak,
+        best_streak,
+        total_correct_answers,
+        total_wrong_answers,
+        level:level_id(level_name, level_order)
+      `)
+      .eq('student_id', id)
+      .single();
 
     if (!student) {
       return { success: false, error: 'الطالب غير موجود' };
     }
 
-    // جلب إحصائيات إضافية
-    const totalAttempts = await prisma.sheetResult.count({
-      where: { student_id: parseInt(studentId) }
-    });
+    const { count: totalAttempts } = await supabase
+      .from('sheet_result')
+      .select('*', { count: 'exact', head: true })
+      .eq('student_id', id);
 
-    const completedAttempts = await prisma.sheetResult.count({
-      where: { 
-        student_id: parseInt(studentId),
-        status: 'completed'
-      }
-    });
+    const { count: completedAttempts } = await supabase
+      .from('sheet_result')
+      .select('*', { count: 'exact', head: true })
+      .eq('student_id', id)
+      .eq('status', 'completed');
+
+    const accuracy =
+      student.total_correct_answers + student.total_wrong_answers > 0
+        ? Math.round(
+            (student.total_correct_answers /
+              (student.total_correct_answers + student.total_wrong_answers)) *
+              100
+          )
+        : 0;
 
     return {
       success: true,
       data: {
         ...student,
         stats: {
-          total_attempts: totalAttempts,
-          completed_attempts: completedAttempts,
-          accuracy: student.total_correct_answers + student.total_wrong_answers > 0 ?
-            Math.round((student.total_correct_answers / (student.total_correct_answers + student.total_wrong_answers)) * 100) : 0,
-          completion_rate: totalAttempts > 0 ?
-            Math.round((completedAttempts / totalAttempts) * 100) : 0
-        }
-      }
+          total_attempts: totalAttempts || 0,
+          completed_attempts: completedAttempts || 0,
+          accuracy,
+          completion_rate: totalAttempts
+            ? Math.round((completedAttempts / totalAttempts) * 100)
+            : 0,
+        },
+      },
     };
-  } catch (error) {
-    console.error('Error in getStudentProgress:', error);
-    return { success: false, error: 'فشل جلب تقدم الطالب' };
+  } catch {
+    return { success: false, error: 'فشل جلب التقدم' };
   }
 }
 
-// الدالة الأصلية (للتوافق مع الكود القديم)
+// ======================================================
+// 3. المستويات (بسيط)
+// ======================================================
 export async function getActiveLevels() {
   try {
-    const levels = await prisma.level.findMany({
-      where: { is_active: true },
-      orderBy: { level_order: 'asc' },
-      select: {
-        level_id: true,
-        level_name: true,
-        description: true,
-        color: true,
-        icon: true,
-        level_order: true,
-      }
-    });
-    return { success: true, data: levels };
-  } catch (error) {
-    console.error('Error in getActiveLevels:', error);
-    return { success: false, error: 'فشل جلب المستويات.' };
+    const { data } = await supabase
+      .from('level')
+      .select('level_id,level_name,description,color,icon,level_order')
+      .eq('is_active', true)
+      .order('level_order', { ascending: true });
+
+    return { success: true, data };
+  } catch {
+    return { success: false, error: 'فشل جلب المستويات' };
   }
 }
 
-// جلب قواعد مستوى معين
+// ======================================================
+// 4. قواعد مستوى
+// ======================================================
 export async function getRulesByLevel(levelId) {
-  const id = parseInt(levelId);
-  if (isNaN(id)) {
-    return { success: false, error: 'معرف مستوى غير صالح.' };
-  }
+  const id = Number(levelId);
+  if (!id) return { success: false, error: 'levelId غير صالح' };
 
   try {
-    const level = await prisma.level.findUnique({
-      where: { level_id: id, is_active: true },
-      include: {
-        levelRules: {
-          include: {
-            rule: {
-              select: {
-                rule_id: true,
-                rule_name: true,
-                description: true,
-                icon: true,
-              }
-            }
-          }
-        }
-      }
-    });
+    const { data: level } = await supabase
+      .from('level')
+      .select(`
+        level_id,
+        level_name,
+        level_rule(
+          rule:rule_id(
+            rule_id,
+            rule_name,
+            description,
+            icon
+          )
+        )
+      `)
+      .eq('level_id', id)
+      .eq('is_active', true)
+      .single();
 
     if (!level) {
-      return { success: false, error: 'المستوى غير موجود أو غير نشط.' };
+      return { success: false, error: 'المستوى غير موجود' };
     }
 
-    const rules = level.levelRules.map(lr => lr.rule);
-    return { success: true, data: { level, rules } };
-  } catch (error) {
-    console.error('Error in getRulesByLevel:', error);
-    return { success: false, error: 'فشل جلب قواعد المستوى.' };
+    const rules = level.level_rule?.map((lr) => lr.rule) || [];
+
+    return {
+      success: true,
+      data: { level, rules },
+    };
+  } catch {
+    return { success: false, error: 'فشل جلب القواعد' };
   }
 }
 
-// جلب أوراق تمارين لقاعدة معينة
+// ======================================================
+// 5. أوراق التمارين
+// ======================================================
 export async function getSheetsByRule(ruleId) {
-  const id = parseInt(ruleId);
-  if (isNaN(id)) {
-    return { success: false, error: 'معرف قاعدة غير صالح.' };
-  }
+  const id = Number(ruleId);
+  if (!id) return { success: false, error: 'ruleId غير صالح' };
 
   try {
-    const sheets = await prisma.sheet.findMany({
-      where: { 
-        rule_id: id, 
-        is_active: true 
-      },
-      select: {
-        sheet_id: true,
-        sheet_name: true,
-        total_problems: true,
-        time_limit: true,
-        required_score: true,
-      },
-      orderBy: { created_at: 'asc' }
-    });
+    const { data: sheets } = await supabase
+      .from('sheet')
+      .select(
+        'sheet_id,sheet_name,total_problems,time_limit,required_score'
+      )
+      .eq('rule_id', id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true });
 
-    const rule = await prisma.rule.findUnique({
-      where: { rule_id: id },
-      select: { rule_name: true }
-    });
+    const { data: rule } = await supabase
+      .from('rule')
+      .select('rule_name')
+      .eq('rule_id', id)
+      .single();
 
-    return { 
-      success: true, 
-      data: { 
-        rule: rule || { rule_name: '---' }, 
-        sheets 
-      } 
+    return {
+      success: true,
+      data: {
+        rule: rule || { rule_name: '---' },
+        sheets: sheets || [],
+      },
     };
-  } catch (error) {
-    console.error('Error in getSheetsByRule:', error);
-    return { success: false, error: 'فشل جلب تمارين القاعدة.' };
+  } catch {
+    return { success: false, error: 'فشل جلب التمارين' };
   }
 }

@@ -1,269 +1,262 @@
-// src/actions/chat.actions.js
-'use server';
+'use server'
 
-import { prisma } from '@/lib/prisma';
+import { createClient } from '@/utils/supabase/server'
+import { cookies } from 'next/headers'
 
-// ***************************************************************
+// =====================================================
+// Helper: Supabase Server Client
+// =====================================================
+function supabaseServer() {
+  return createClient(cookies())
+}
+
+// =====================================================
 // 1. جلب قائمة المحادثات
-// ***************************************************************
+// =====================================================
 export async function getChatList(studentId) {
-    const studentIdInt = parseInt(studentId);
-    if (isNaN(studentIdInt)) {
-        return { success: false, error: 'معرف طالب غير صالح.' };
+  const supabase = supabaseServer()
+
+  const studentIdInt = parseInt(studentId)
+  if (isNaN(studentIdInt)) {
+    return { success: false, error: 'معرف طالب غير صالح.' }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select(`
+        *,
+        sender:students!chat_messages_sender_id_fkey(student_id, student_name),
+        receiver:students!chat_messages_receiver_id_fkey(student_id, student_name)
+      `)
+      .or(`sender_id.eq.${studentIdInt},receiver_id.eq.${studentIdInt}`)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    const chatMap = new Map()
+
+    data.forEach((message) => {
+      const otherParticipantId =
+        message.sender_id === studentIdInt
+          ? message.receiver_id
+          : message.sender_id
+
+      if (!otherParticipantId) return
+
+      const otherStudent =
+        message.sender_id === studentIdInt
+          ? message.receiver
+          : message.sender
+
+      if (!chatMap.has(otherParticipantId)) {
+        chatMap.set(otherParticipantId, {
+          student: otherStudent,
+          lastMessage: message,
+          unreadCount: 0
+        })
+      }
+
+      // unread messages
+      if (message.receiver_id === studentIdInt && message.read_at === null) {
+        chatMap.get(otherParticipantId).unreadCount++
+      }
+    })
+
+    return {
+      success: true,
+      data: Array.from(chatMap.values())
     }
-
-    try {
-        const messages = await prisma.chatMessage.findMany({
-            where: {
-                OR: [
-                    { sender_id: studentIdInt },
-                    { receiver_id: studentIdInt },
-                ]
-            },
-            orderBy: {
-                created_at: 'desc'
-            },
-            include: {
-                sender: { select: { student_id: true, student_name: true } },
-                receiver: { select: { student_id: true, student_name: true } },
-            }
-        });
-
-        const chatMap = new Map();
-        
-        messages.forEach(message => {
-            const otherParticipantId = 
-                message.sender_id === studentIdInt ? message.receiver_id : message.sender_id;
-            
-            if (!otherParticipantId) return;
-
-            const otherStudent = 
-                message.sender_id === studentIdInt ? message.receiver : message.sender;
-
-            if (!chatMap.has(otherParticipantId)) {
-                chatMap.set(otherParticipantId, {
-                    student: otherStudent,
-                    lastMessage: message,
-                    unreadCount: 0
-                });
-            }
-            
-            // ✅ استخدام read_at: null لرسالة غير مقروءة
-            if (message.receiver_id === studentIdInt && message.read_at === null) {
-                chatMap.get(otherParticipantId).unreadCount++;
-            }
-        });
-
-        const chatList = Array.from(chatMap.values());
-        
-        return { success: true, data: chatList };
-    } catch (error) {
-        console.error("PRISMA ERROR in getChatList:", error); 
-        return { success: false, error: `فشل في جلب المحادثات: ${error.message || 'خطأ قاعدة بيانات.'}` };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message || 'فشل في جلب المحادثات'
     }
+  }
 }
 
-// ***************************************************************
-// 2. جلب العدد الكلي للرسائل غير المقروءة
-// ***************************************************************
+// =====================================================
+// 2. عدد الرسائل غير المقروءة
+// =====================================================
 export async function getUnreadCount(studentId) {
-    const studentIdInt = parseInt(studentId);
-    if (isNaN(studentIdInt)) {
-        return { success: false, error: 'معرف طالب غير صالح.' };
-    }
+  const supabase = supabaseServer()
 
-    try {
-        // ✅ استخدام read_at: null بدلاً من is_read: false
-        const unreadCount = await prisma.chatMessage.count({
-            where: {
-                receiver_id: studentIdInt,
-                read_at: null, // 🔑 الشرط الصحيح لرسالة غير مقروءة
-            },
-        });
-        
-        return { success: true, data: unreadCount };
-    } catch (error) {
-        console.error("PRISMA ERROR in getUnreadCount:", error); 
-        return { success: false, error: 'فشل في حساب الرسائل غير المقروءة.' };
-    }
+  const studentIdInt = parseInt(studentId)
+  if (isNaN(studentIdInt)) {
+    return { success: false, error: 'معرف طالب غير صالح.' }
+  }
+
+  try {
+    const { count, error } = await supabase
+      .from('chat_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('receiver_id', studentIdInt)
+      .is('read_at', null)
+
+    if (error) throw error
+
+    return { success: true, data: count || 0 }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 }
 
-// ***************************************************************
-// 3. جلب جميع الرسائل بين طالبين
-// ***************************************************************
+// =====================================================
+// 3. جلب الرسائل بين طالبين
+// =====================================================
 export async function getMessagesBetweenStudents(studentId, otherId) {
-    const studentIdInt = parseInt(studentId);
-    const otherIdInt = parseInt(otherId);
+  const supabase = supabaseServer()
 
-    if (isNaN(studentIdInt) || isNaN(otherIdInt)) {
-        return { success: false, error: 'معرفات الطالب أو الطرف الآخر غير صالحة.' };
-    }
+  const studentIdInt = parseInt(studentId)
+  const otherIdInt = parseInt(otherId)
 
-    try {
-        // 1. جلب الرسائل
-        const messages = await prisma.chatMessage.findMany({
-            where: {
-                OR: [
-                    { sender_id: studentIdInt, receiver_id: otherIdInt },
-                    { sender_id: otherIdInt, receiver_id: studentIdInt },
-                ]
-            },
-            orderBy: {
-                created_at: 'asc' 
-            }
-        });
+  if (isNaN(studentIdInt) || isNaN(otherIdInt)) {
+    return { success: false, error: 'معرفات غير صالحة' }
+  }
 
-        // 2. تحديث الرسائل كـ "مقروءة"
-        try {
-            await prisma.chatMessage.updateMany({
-                where: {
-                    receiver_id: studentIdInt, 
-                    sender_id: otherIdInt,     
-                    read_at: null // ✅ الرسائل غير المقروءة فقط
-                },
-                data: {
-                    read_at: new Date() // ✅ تعيين وقت القراءة
-                }
-            });
-        } catch (updateError) {
-            console.error("PRISMA UPDATE ERROR (Mark as Read):", updateError);
-        }
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .or(
+        `and(sender_id.eq.${studentIdInt},receiver_id.eq.${otherIdInt}),and(sender_id.eq.${otherIdInt},receiver_id.eq.${studentIdInt})`
+      )
+      .order('created_at', { ascending: true })
 
-        return { success: true, data: messages };
-    } catch (error) {
-        console.error("PRISMA FIND ERROR in getMessagesBetweenStudents:", error);
-        return { success: false, error: 'فشل في جلب سجل المحادثة.' };
-    }
+    if (error) throw error
+
+    // mark as read
+    await supabase
+      .from('chat_messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('receiver_id', studentIdInt)
+      .eq('sender_id', otherIdInt)
+      .is('read_at', null)
+
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 }
 
-// ***************************************************************
-// 4. إرسال رسالة جديدة
-// ***************************************************************
+// =====================================================
+// 4. إرسال رسالة
+// =====================================================
 export async function sendMessage(senderId, receiverId, messageText) {
-    const senderIdInt = parseInt(senderId);
-    const receiverIdInt = parseInt(receiverId);
-    
-    if (!messageText.trim() || isNaN(senderIdInt) || isNaN(receiverIdInt)) {
-        return { success: false, error: 'البيانات غير صالحة للإرسال.' };
-    }
+  const supabase = supabaseServer()
 
-    try {
-        const newMessage = await prisma.chatMessage.create({
-            data: {
-                sender_id: senderIdInt,
-                receiver_id: receiverIdInt,
-                message_text: messageText,
-                is_approved: true,
-                is_flagged: false,
-                read_at: null,
-            }
-        });
-        
-        return { 
-            success: true, 
-            data: {
-                message_id: newMessage.message_id, 
-                created_at: newMessage.created_at 
-            } 
-        };
-    } catch (error) {
-        console.error("PRISMA ERROR in sendMessage:", error);
-        return { success: false, error: 'فشل في إرسال الرسالة.' };
-    }
+  const senderIdInt = parseInt(senderId)
+  const receiverIdInt = parseInt(receiverId)
+
+  if (!messageText?.trim() || isNaN(senderIdInt) || isNaN(receiverIdInt)) {
+    return { success: false, error: 'بيانات غير صالحة' }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .insert({
+        sender_id: senderIdInt,
+        receiver_id: receiverIdInt,
+        message_text: messageText,
+        is_approved: true,
+        is_flagged: false,
+        read_at: null
+      })
+      .select('message_id, created_at')
+      .single()
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 }
 
-// ***************************************************************
-// 5. جلب جميع الطلاب النشطين (باستثناء الطالب الحالي)
-// ***************************************************************
+// =====================================================
+// 5. جلب الطلاب النشطين
+// =====================================================
 export async function getActiveStudentsForChat(currentStudentId) {
-    const id = parseInt(currentStudentId);
-    if (isNaN(id)) {
-        return { success: false, error: 'معرف طالب غير صالح.' };
-    }
+  const supabase = supabaseServer()
 
-    try {
-        const students = await prisma.student.findMany({
-            where: {
-                status: 'active',
-                student_id: { not: id },
-            },
-            select: {
-                student_id: true,
-                student_name: true,
-                branch: { select: { branch_name: true } },
-            },
-            orderBy: {
-                student_name: 'asc',
-            },
-        });
+  const id = parseInt(currentStudentId)
+  if (isNaN(id)) {
+    return { success: false, error: 'معرف غير صالح' }
+  }
 
-        return { success: true, data: students };
-    } catch (error) {
-        console.error('Error in getActiveStudentsForChat:', error);
-        return { success: false, error: 'فشل في جلب قائمة الطلاب.' };
-    }
+  try {
+    const { data, error } = await supabase
+      .from('students')
+      .select(`
+        student_id,
+        student_name,
+        branch:branches(branch_name)
+      `)
+      .eq('status', 'active')
+      .neq('student_id', id)
+      .order('student_name', { ascending: true })
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 }
 
-// ***************************************************************
-// 6. تحديث رسالة كمقروءة (دالة إضافية)
-// ***************************************************************
+// =====================================================
+// 6. تحديد رسالة كمقروءة
+// =====================================================
 export async function markMessageAsRead(messageId, studentId) {
-    try {
-        const messageIdInt = parseInt(messageId);
-        const studentIdInt = parseInt(studentId);
-        
-        if (isNaN(messageIdInt) || isNaN(studentIdInt)) {
-            return { success: false, error: 'معرفات غير صالحة.' };
-        }
+  const supabase = supabaseServer()
 
-        const updatedMessage = await prisma.chatMessage.update({
-            where: {
-                message_id: messageIdInt,
-                receiver_id: studentIdInt,
-            },
-            data: {
-                read_at: new Date(),
-            },
-        });
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('message_id', messageId)
+      .eq('receiver_id', studentId)
+      .select()
+      .single()
 
-        return { success: true, data: updatedMessage };
-    } catch (error) {
-        console.error('Error in markMessageAsRead:', error);
-        return { success: false, error: 'فشل في تحديث حالة الرسالة.' };
-    }
+    if (error) throw error
+
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 }
 
-// ***************************************************************
-// 7. حذف رسالة (للمرسل فقط)
-// ***************************************************************
+// =====================================================
+// 7. حذف رسالة
+// =====================================================
 export async function deleteMessage(messageId, senderId) {
-    try {
-        const messageIdInt = parseInt(messageId);
-        const senderIdInt = parseInt(senderId);
-        
-        if (isNaN(messageIdInt) || isNaN(senderIdInt)) {
-            return { success: false, error: 'معرفات غير صالحة.' };
-        }
+  const supabase = supabaseServer()
 
-        const message = await prisma.chatMessage.findUnique({
-            where: { message_id: messageIdInt },
-        });
+  try {
+    // تحقق أولاً
+    const { data: message, error: fetchError } = await supabase
+      .from('chat_messages')
+      .select('sender_id')
+      .eq('message_id', messageId)
+      .single()
 
-        if (!message) {
-            return { success: false, error: 'الرسالة غير موجودة.' };
-        }
+    if (fetchError) throw fetchError
 
-        if (message.sender_id !== senderIdInt) {
-            return { success: false, error: 'غير مصرح لك بحذف هذه الرسالة.' };
-        }
-
-        await prisma.chatMessage.delete({
-            where: { message_id: messageIdInt },
-        });
-
-        return { success: true, message: 'تم حذف الرسالة بنجاح.' };
-    } catch (error) {
-        console.error('Error in deleteMessage:', error);
-        return { success: false, error: 'فشل في حذف الرسالة.' };
+    if (!message || message.sender_id !== parseInt(senderId)) {
+      return { success: false, error: 'غير مصرح' }
     }
+
+    const { error } = await supabase
+      .from('chat_messages')
+      .delete()
+      .eq('message_id', messageId)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
 }

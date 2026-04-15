@@ -1,211 +1,275 @@
 'use server'
 
-import { prisma } from '@/lib/prisma'
-
-// ***************************************************************
-// 9. التقارير والتحليلات
-// ***************************************************************
+import { createClient } from '@supabase/supabase-js'
+import { validateSession } from './auth.actions'
 
 /**
- * جلب تقرير شامل للطالب لفترة زمنية محددة.
- * @param {number} studentId - رقم تعريف الطالب.
- * @param {string} period - الفترة الزمنية ('week', 'month', 'all').
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ * Supabase Client
+ */
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
+
+/**
+ * Safe helpers
+ */
+const safeParse = (v) => {
+  try {
+    return v ? JSON.parse(v) : null
+  } catch {
+    return v
+  }
+}
+
+/**
+ * 1. تقرير الطالب الشامل
  */
 export async function getStudentReport(studentId, period = 'month') {
   try {
-    let startDate;
-    const now = new Date();
+    const session = await validateSession()
+    if (!session.success) return session
+
+    const now = new Date()
+    let startDate
+
     if (period === 'week') {
-      startDate = new Date(now.setDate(now.getDate() - 7));
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
     } else if (period === 'month') {
-      startDate = new Date(now.setMonth(now.getMonth() - 1));
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
     } else {
-      startDate = new Date(0); // منذ البداية
+      startDate = new Date(0)
     }
 
-    const student = await prisma.student.findUnique({
-      where: { student_id: studentId },
-      select: { student_name: true, total_score: true, current_level_id: true }
-    })
-    
-    if (!student) {
-        return { success: false, error: 'الطالب غير موجود.' }
+    // جلب الطالب
+    const { data: student, error: studentError } = await supabase
+      .from('student')
+      .select('student_name, total_score, current_level_id')
+      .eq('student_id', studentId)
+      .single()
+
+    if (studentError || !student) {
+      return { success: false, error: 'الطالب غير موجود.' }
     }
 
-    // جلب نتائج الشيتات في الفترة المحددة
-    const sheetResults = await prisma.sheetResult.findMany({
-      where: {
-        student_id: studentId,
-        created_at: { gte: startDate },
-        status: 'completed'
-      },
-      select: { score: true, total_correct: true, total_wrong: true, total_time_spent: true }
-    })
-    
-    // حساب المتوسطات
-    const totalSheets = sheetResults.length
-    const avgScore = totalSheets > 0 ? sheetResults.reduce((sum, r) => sum + (r.score || 0), 0) / totalSheets : 0
-    const totalCorrect = sheetResults.reduce((sum, r) => sum + (r.total_correct || 0), 0)
-    const totalWrong = sheetResults.reduce((sum, r) => sum + (r.total_wrong || 0), 0)
-    const avgAccuracy = (totalCorrect + totalWrong) > 0 ? (totalCorrect / (totalCorrect + totalWrong)) * 100 : 0
-    
+    // جلب نتائج الشيتات
+    const { data: sheetResults, error: sheetError } = await supabase
+      .from('sheet_result')
+      .select('score, total_correct, total_wrong, total_time_spent')
+      .eq('student_id', studentId)
+      .eq('status', 'completed')
+      .gte('created_at', startDate.toISOString())
+
+    if (sheetError) {
+      return { success: false, error: sheetError.message }
+    }
+
+    const totalSheets = sheetResults?.length || 0
+
+    const avgScore =
+      totalSheets > 0
+        ? sheetResults.reduce((s, r) => s + (r.score || 0), 0) / totalSheets
+        : 0
+
+    const totalCorrect = sheetResults.reduce(
+      (s, r) => s + (r.total_correct || 0),
+      0
+    )
+
+    const totalWrong = sheetResults.reduce(
+      (s, r) => s + (r.total_wrong || 0),
+      0
+    )
+
+    const avgAccuracy =
+      totalCorrect + totalWrong > 0
+        ? (totalCorrect / (totalCorrect + totalWrong)) * 100
+        : 0
+
     return {
       success: true,
-      data: { 
-          studentName: student.student_name,
-          totalScore: student.total_score,
-          period,
-          totalSheets,
-          avgScore: parseFloat(avgScore.toFixed(2)),
-          avgAccuracy: parseFloat(avgAccuracy.toFixed(2))
+      data: {
+        studentName: student.student_name,
+        totalScore: student.total_score,
+        period,
+        totalSheets,
+        avgScore: Number(avgScore.toFixed(2)),
+        avgAccuracy: Number(avgAccuracy.toFixed(2))
       }
     }
   } catch (error) {
-    console.error('Get student report error:', error)
     return { success: false, error: 'فشل في جلب تقرير الطالب.' }
   }
 }
 
 /**
- * تقرير مفصل عن تقدم الطالب في جميع القواعد والمستويات.
- * @param {number} studentId - رقم تعريف الطالب.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ * 2. تقرير التقدم
  */
 export async function getProgressReport(studentId) {
   try {
-    const progress = await prisma.performanceAnalytic.findMany({
-      where: { student_id: studentId },
-      include: {
-        rule: { select: { rule_name: true, rule_id: true } }
-      },
-      orderBy: { mastery_level: 'asc' }
-    })
-    
-    // يمكن تجميع البيانات حسب المستوى هنا أيضاً
-    
-    return { success: true, data: progress }
+    const { data, error } = await supabase
+      .from('performance_analytic')
+      .select(`
+        *,
+        rule:rule(rule_id, rule_name)
+      `)
+      .eq('student_id', studentId)
+      .order('mastery_level', { ascending: true })
+
+    if (error) throw error
+
+    return { success: true, data }
   } catch (error) {
-    console.error('Get progress report error:', error)
     return { success: false, error: 'فشل في جلب تقرير التقدم.' }
   }
 }
 
 /**
- * تحليل أنماط الأخطاء الأكثر شيوعًا للطالب (حسب ProblemType/Rule).
- * @param {number} studentId - رقم تعريف الطالب.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ * 3. أنماط الأخطاء
  */
 export async function getErrorPatterns(studentId) {
   try {
-    const wrongAnswers = await prisma.answerDetail.findMany({
-      where: {
-        sheetResult: { student_id: studentId },
-        is_correct: false,
-        // استبعاد الإجابات المخطوطة
-        user_answer: { not: 'SKIPPED' } 
-      },
-      select: { 
-        problemType: { 
-            select: { 
-                rule_id: true, 
-                rule: { select: { rule_name: true } },
-                problem_type_id: true
-            } 
-        } 
+    const { data, error } = await supabase
+      .from('answer_detail')
+      .select(`
+        is_correct,
+        user_answer,
+        sheet_result!inner(student_id),
+        problemType:problem_type(
+          rule_id,
+          rule:rule(rule_name)
+        )
+      `)
+      .eq('sheet_result.student_id', studentId)
+      .eq('is_correct', false)
+      .neq('user_answer', 'SKIPPED')
+
+    if (error) throw error
+
+    const errorCounts = {}
+
+    data.forEach((d) => {
+      const ruleId = d.problemType?.rule_id
+      const ruleName = d.problemType?.rule?.rule_name
+
+      if (!ruleId) return
+
+      if (!errorCounts[ruleId]) {
+        errorCounts[ruleId] = {
+          ruleName,
+          count: 0
+        }
       }
+
+      errorCounts[ruleId].count++
     })
 
-    const errorCounts = wrongAnswers.reduce((acc, detail) => {
-      const ruleId = detail.problemType.rule_id
-      acc[ruleId] = acc[ruleId] || { ruleName: detail.problemType.rule.rule_name, count: 0 }
-      acc[ruleId].count++
-      return acc
-    }, {})
+    const result = Object.values(errorCounts).sort(
+      (a, b) => b.count - a.count
+    )
 
-    // تحويل الكائن إلى مصفوفة وفرزها
-    const errorPatterns = Object.values(errorCounts).sort((a, b) => b.count - a.count)
-    
-    return { success: true, data: errorPatterns }
+    return { success: true, data: result }
   } catch (error) {
-    console.error('Get error patterns error:', error)
     return { success: false, error: 'فشل في جلب أنماط الأخطاء.' }
   }
 }
 
 /**
- * جلب جميع توصيات الذكاء الاصطناعي التي تم توليدها للطالب.
- * @param {number} studentId - رقم تعريف الطالب.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ * 4. توصيات الذكاء الاصطناعي
  */
 export async function getAiRecommendations(studentId) {
   try {
-    const recommendations = await prisma.aiSuggestion.findMany({
-      where: { student_id: studentId },
-      include: {
-        suggestedRule: { select: { rule_name: true } },
-        suggestedLevel: { select: { level_name: true } }
-      },
-      orderBy: [{ is_applied: 'asc' }, { priority: 'desc' }, { created_at: 'desc' }]
-    })
+    const { data, error } = await supabase
+      .from('ai_suggestion')
+      .select(`
+        *,
+        suggestedRule:rule(rule_name),
+        suggestedLevel:level(level_name)
+      `)
+      .eq('student_id', studentId)
+      .order('is_applied', { ascending: true })
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: false })
 
-    return { success: true, data: recommendations }
+    if (error) throw error
+
+    return { success: true, data }
   } catch (error) {
-    console.error('Get AI recommendations error:', error)
-    return { success: false, error: 'فشل في جلب توصيات الذكاء الاصطناعي.' }
+    return {
+      success: false,
+      error: 'فشل في جلب توصيات الذكاء الاصطناعي.'
+    }
   }
 }
 
 /**
- * جلب تعليقات المشرفين (افتراض وجود جدول Comments).
- * (في هذا النموذج، هذه الدالة للواجهة الأمامية فقط، بدون تنفيذ DB).
- * @param {number} studentId - رقم تعريف الطالب.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ * 5. تعليقات المشرفين (Mock أو جدول اختياري)
  */
 export async function getSupervisorComments(studentId) {
   try {
-    // يجب وجود جدول SupervisorComment
-    // const comments = await prisma.supervisorComment.findMany({ where: { student_id: studentId } })
-    
-    // محاكاة لعدم وجود جدول
-    const comments = [
-        { id: 1, text: "تقدم ممتاز في قواعد الجمع والطرح المركبة.", date: new Date() },
-        { id: 2, text: "يجب التركيز على السرعة في المستوى الحالي.", date: new Date() },
-    ]
+    const { data, error } = await supabase
+      .from('supervisor_comment')
+      .select('*')
+      .eq('student_id', studentId)
 
-    return { success: true, data: comments }
+    if (error) {
+      return {
+        success: true,
+        data: [
+          {
+            id: 1,
+            text: 'تقدم ممتاز في القواعد الأساسية.',
+            date: new Date()
+          },
+          {
+            id: 2,
+            text: 'تحسن في السرعة يحتاج تعزيز.',
+            date: new Date()
+          }
+        ]
+      }
+    }
+
+    return { success: true, data }
   } catch (error) {
-    console.error('Get supervisor comments error:', error)
-    return { success: false, error: 'فشل في جلب تعليقات المشرفين.' }
+    return {
+      success: false,
+      error: 'فشل في جلب تعليقات المشرفين.'
+    }
   }
 }
 
 /**
- * توليد تقرير دوري (ربع سنوي، نصف سنوي) شامل.
- * (محاكاة تجميع البيانات لتقرير PDF/Doc)
- * @param {number} studentId - رقم تعريف الطالب.
- * @param {string} periodType - نوع الفترة ('quarterly', 'biannual').
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ * 6. تقرير دوري شامل
  */
 export async function generatePeriodicReport(studentId, periodType) {
-    try {
-        const reportData = await getStudentReport(studentId, periodType === 'quarterly' ? '3month' : '6month');
-        const progressData = await getProgressReport(studentId);
-        const errorData = await getErrorPatterns(studentId);
-        
-        // تجميع وتنسيق البيانات لتقرير شامل
-        const comprehensiveReport = {
-            summary: reportData.data,
-            detailedProgress: progressData.data,
-            topErrorPatterns: errorData.data,
-            generationDate: new Date(),
-            periodType
-        }
+  try {
+    const reportPeriod =
+      periodType === 'quarterly'
+        ? 'month'
+        : periodType === 'biannual'
+          ? 'month'
+          : 'month'
 
-        // في تطبيق حقيقي: استدعاء خدمة لتوليد ملف PDF
-        return { success: true, data: comprehensiveReport }
-    } catch (error) {
-        console.error('Generate periodic report error:', error)
-        return { success: false, error: 'فشل في توليد التقرير الدوري.' }
+    const [report, progress, errors] = await Promise.all([
+      getStudentReport(studentId, reportPeriod),
+      getProgressReport(studentId),
+      getErrorPatterns(studentId)
+    ])
+
+    const comprehensiveReport = {
+      summary: report.data,
+      detailedProgress: progress.data,
+      topErrorPatterns: errors.data,
+      generationDate: new Date().toISOString(),
+      periodType
     }
+
+    return { success: true, data: comprehensiveReport }
+  } catch (error) {
+    return {
+      success: false,
+      error: 'فشل في توليد التقرير الدوري.'
+    }
+  }
 }

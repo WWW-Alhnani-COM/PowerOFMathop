@@ -1,141 +1,125 @@
 'use server'
 
-import { prisma } from '@/lib/prisma'
+import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
+
 // ***************************************************************
-// 4. إدارة القواعد واختيارها
+// 4. إدارة القواعد واختيارها (Supabase)
 // ***************************************************************
 
-/**
- * جلب جميع القواعد التابعة لمستوى معين.
- * @param {number} levelId - رقم تعريف المستوى.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
- */
 export async function getRulesByLevel(levelId) {
   try {
-    const rules = await prisma.levelRule.findMany({
-      where: { level_id: levelId },
-      orderBy: { order_in_level: 'asc' },
-      include: {
-        rule: {
-          select: { rule_id: true, rule_name: true, description: true, icon: true }
-        }
-      }
-    })
+    const { data, error } = await supabase
+      .from('level_rules')
+      .select(`
+        rule:rules(rule_id, rule_name, description, icon)
+      `)
+      .eq('level_id', levelId)
+      .order('order_in_level')
 
-    const rulesData = rules.map(lr => lr.rule)
-    return { success: true, data: rulesData }
-  } catch (error) {
-    console.error('Get rules by level error:', error)
-    return { success: false, error: 'فشل في جلب القواعد حسب المستوى.' }
+    if (error) throw error
+
+    return {
+      success: true,
+      data: data.map(r => r.rule)
+    }
+  } catch {
+    return { success: false, error: 'فشل في جلب القواعد.' }
   }
 }
 
-/**
- * جلب تفاصيل قاعدة معينة.
- * @param {number} ruleId - رقم تعريف القاعدة.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
- */
 export async function getRuleDetails(ruleId) {
   try {
-    const rule = await prisma.rule.findUnique({
-      where: { rule_id: ruleId }
-    })
-    
-    if (!rule) {
+    const { data, error } = await supabase
+      .from('rules')
+      .select('*')
+      .eq('rule_id', ruleId)
+      .single()
+
+    if (error || !data) {
       return { success: false, error: 'القاعدة غير موجودة.' }
     }
-    
-    return { success: true, data: rule }
-  } catch (error) {
-    console.error('Get rule details error:', error)
+
+    return { success: true, data }
+  } catch {
     return { success: false, error: 'فشل في جلب تفاصيل القاعدة.' }
   }
 }
 
-/**
- * جلب أمثلة للقاعدة (يمكن أن تكون ProblemTypes أو بيانات وصفية).
- * هنا نفترض أنها ProblemTypes.
- * @param {number} ruleId - رقم تعريف القاعدة.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
- */
 export async function getRuleExamples(ruleId) {
   try {
-    const examples = await prisma.problemType.findMany({
-      where: { rule_id: ruleId, is_active: true },
-      select: { template: true, parameters: true, difficulty_weight: true },
-      take: 3 // جلب 3 أمثلة
-    })
-    
-    return { success: true, data: examples }
-  } catch (error) {
-    console.error('Get rule examples error:', error)
-    return { success: false, error: 'فشل في جلب أمثلة القاعدة.' }
+    const { data, error } = await supabase
+      .from('problem_types')
+      .select('template, parameters, difficulty_weight')
+      .eq('rule_id', ruleId)
+      .eq('is_active', true)
+      .limit(3)
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch {
+    return { success: false, error: 'فشل في جلب الأمثلة.' }
   }
 }
 
-/**
- * جلب الشيتات المتاحة لهذه القاعدة.
- * @param {number} ruleId - رقم تعريف القاعدة.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
- */
 export async function getAvailableSheets(ruleId) {
   try {
-    const sheets = await prisma.sheet.findMany({
-      where: { rule_id: ruleId, is_active: true },
-      select: { 
-        sheet_id: true, 
-        sheet_name: true, 
-        total_problems: true, 
-        time_limit: true, 
-        difficulty_level: true 
-      },
-      orderBy: { difficulty_level: 'asc' }
-    })
-    
-    return { success: true, data: sheets }
-  } catch (error) {
-    console.error('Get available sheets error:', error)
-    return { success: false, error: 'فشل في جلب الشيتات المتاحة.' }
+    const { data, error } = await supabase
+      .from('sheets')
+      .select('sheet_id, sheet_name, total_problems, time_limit, difficulty_level')
+      .eq('rule_id', ruleId)
+      .eq('is_active', true)
+      .order('difficulty_level')
+
+    if (error) throw error
+
+    return { success: true, data }
+  } catch {
+    return { success: false, error: 'فشل في جلب الشيتات.' }
   }
 }
 
-/**
- * بدء تدريب على قاعدة معينة (افتراضياً: إنشاء SheetResult مبدئي).
- * (العملية الكاملة تتم في practice.actions)
- * @param {number} studentId - رقم تعريف الطالب.
- * @param {number} ruleId - رقم تعريف القاعدة.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
- */
 export async function startRulePractice(studentId, ruleId) {
   try {
-    // يمكن هنا اختيار شيت تلقائي لهذا الـ ruleId
-    const defaultSheet = await prisma.sheet.findFirst({
-      where: { rule_id: ruleId, is_active: true },
-      orderBy: { difficulty_level: 'asc' }
-    })
+    const { data: sheet } = await supabase
+      .from('sheets')
+      .select('*')
+      .eq('rule_id', ruleId)
+      .eq('is_active', true)
+      .order('difficulty_level')
+      .limit(1)
+      .single()
 
-    if (!defaultSheet) {
-        return { success: false, error: 'لا توجد شيتات متاحة لهذه القاعدة.' }
+    if (!sheet) {
+      return { success: false, error: 'لا توجد شيتات.' }
     }
 
-    // إنشاء نتيجة شيت جديدة
-    const newResult = await prisma.sheetResult.create({
-      data: {
+    const { data: result, error } = await supabase
+      .from('sheet_results')
+      .insert({
         student_id: studentId,
-        sheet_id: defaultSheet.sheet_id,
-        // start_time يُعيّن تلقائياً بواسطة @default(now())
-        total_time_spent: defaultSheet.time_limit, // تعيين الحد الأقصى للوقت مبدئياً
+        sheet_id: sheet.sheet_id,
+        total_time_spent: sheet.time_limit,
         status: 'in_progress'
-      }
-    })
+      })
+      .select()
+      .single()
+
+    if (error) throw error
 
     revalidatePath('/practice')
-    
-    return { success: true, data: { resultId: newResult.result_id, sheetId: defaultSheet.sheet_id } }
-  } catch (error) {
-    console.error('Start rule practice error:', error)
-    return { success: false, error: 'فشل في بدء التدريب على القاعدة.' }
+
+    return {
+      success: true,
+      data: { resultId: result.result_id, sheetId: sheet.sheet_id }
+    }
+  } catch {
+    return { success: false, error: 'فشل في بدء التدريب.' }
   }
 }

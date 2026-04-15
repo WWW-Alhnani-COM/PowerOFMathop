@@ -1,190 +1,191 @@
 'use server'
 
-import { prisma } from '@/lib/prisma'
+import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
+
 // ***************************************************************
-// 6. نتائج الشيتات وتحليلها
+// 6. نتائج الشيتات وتحليلها (Supabase)
 // ***************************************************************
 
-/**
- * جلب تفاصيل نتائج شيت معين.
- * @param {number} resultId - رقم تعريف نتيجة الشيت.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
- */
 export async function getSheetResults(resultId) {
   try {
-    const sheetResult = await prisma.sheetResult.findUnique({
-      where: { result_id: resultId, status: 'completed' },
-      include: {
-        student: { select: { student_name: true } },
-        sheet: { select: { sheet_name: true, total_problems: true, required_score: true } },
-        answerDetails: {
-          select: { sequence_number: true, is_correct: true, time_spent: true, user_answer: true, correct_answer: true },
-          orderBy: { sequence_number: 'asc' }
-        }
-      }
-    })
+    const { data: sheetResult, error } = await supabase
+      .from('sheet_results')
+      .select(`
+        *,
+        student:students(student_name),
+        sheet:sheets(sheet_name, total_problems, required_score),
+        answerDetails:answer_details(
+          sequence_number,
+          is_correct,
+          time_spent,
+          user_answer,
+          correct_answer
+        )
+      `)
+      .eq('result_id', resultId)
+      .eq('status', 'completed')
+      .single()
 
-    if (!sheetResult) {
+    if (error || !sheetResult) {
       return { success: false, error: 'نتيجة الشيت غير موجودة أو لم تكتمل بعد.' }
     }
 
     return { success: true, data: sheetResult }
   } catch (error) {
-    console.error('Get sheet results error:', error)
     return { success: false, error: 'فشل في جلب نتائج الشيت.' }
   }
 }
 
-/**
- * حساب إحصائيات مفصلة للشيت بناءً على AnswerDetails (للتكرار بعد EndSheetPractice).
- * (يجب أن يتم استدعاؤها في دالة EndSheetPractice)
- * @param {number} resultId - رقم تعريف نتيجة الشيت.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
- */
 export async function calculateSheetStats(resultId) {
   try {
-    const details = await prisma.answerDetail.findMany({
-      where: { result_id: resultId }
-    })
+    const { data: details, error } = await supabase
+      .from('answer_details')
+      .select('*')
+      .eq('result_id', resultId)
+
+    if (error) throw error
 
     const totalAnswers = details.length
     const totalCorrect = details.filter(d => d.is_correct).length
     const totalWrong = totalAnswers - totalCorrect
-    const totalTime = details.reduce((sum, d) => sum + d.time_spent, 0)
-    
-    const accuracy = totalAnswers > 0 ? (totalCorrect / totalAnswers) * 100 : 0
-    const speedRate = totalTime > 0 ? totalAnswers / totalTime : 0
+    const totalTime = details.reduce((s, d) => s + (d.time_spent || 0), 0)
 
-    return { 
-        success: true, 
-        data: { totalAnswers, totalCorrect, totalWrong, totalTime, accuracy, speedRate } 
+    const accuracy = totalAnswers ? (totalCorrect / totalAnswers) * 100 : 0
+    const speedRate = totalTime ? totalAnswers / totalTime : 0
+
+    return {
+      success: true,
+      data: { totalAnswers, totalCorrect, totalWrong, totalTime, accuracy, speedRate }
     }
-  } catch (error) {
-    console.error('Calculate sheet stats error:', error)
-    return { success: false, error: 'فشل في حساب إحصائيات الشيت.' }
+  } catch {
+    return { success: false, error: 'فشل في حساب الإحصائيات.' }
   }
 }
 
-/**
- * حفظ النتائج النهائية (يُفترض أنها جزء من EndSheetPractice).
- * (هذه الدالة تستخدم لتحديث حقول إضافية غير محسوبة في EndSheetPractice)
- * @param {number} resultId - رقم تعريف نتيجة الشيت.
- * @param {object} finalData - البيانات النهائية للحفظ.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
- */
 export async function saveSheetResults(resultId, finalData) {
   try {
-    const savedResult = await prisma.sheetResult.update({
-      where: { result_id: resultId },
-      data: { 
-        end_time: new Date(), // تحديث إضافي لوقت الانتهاء
-        // يمكن إضافة حقول إضافية من finalData
-      }
-    })
-    
+    const { data, error } = await supabase
+      .from('sheet_results')
+      .update({
+        end_time: new Date().toISOString(),
+        ...finalData
+      })
+      .eq('result_id', resultId)
+      .select()
+      .single()
+
+    if (error) throw error
+
     revalidatePath(`/results/${resultId}`)
-    
-    return { success: true, data: savedResult }
-  } catch (error) {
-    console.error('Save sheet results error:', error)
+
+    return { success: true, data }
+  } catch {
     return { success: false, error: 'فشل في حفظ النتائج النهائية.' }
   }
 }
 
-/**
- * تحليل أداء الطالب على الشيت واستخراج أنماط الأخطاء (لتحديث PerformanceAnalytic).
- * @param {number} studentId - رقم تعريف الطالب.
- * @param {number} resultId - رقم تعريف نتيجة الشيت.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
- */
 export async function getPerformanceAnalysis(studentId, resultId) {
   try {
-    const answerDetails = await prisma.answerDetail.findMany({
-      where: { result_id: resultId, is_correct: false },
-      select: { 
-        problemType: { 
-            select: { 
-                rule_id: true, 
-                rule: { select: { rule_name: true } } 
-            } 
-        } 
+    const { data: wrongAnswers, error } = await supabase
+      .from('answer_details')
+      .select(`
+        problemType:problem_types(
+          rule_id,
+          rule:rules(rule_name)
+        )
+      `)
+      .eq('result_id', resultId)
+      .eq('is_correct', false)
+
+    if (error) throw error
+
+    const errorsByRule = {}
+
+    wrongAnswers.forEach(d => {
+      const ruleId = d.problemType.rule_id
+      const ruleName = d.problemType.rule.rule_name
+
+      if (!errorsByRule[ruleId]) {
+        errorsByRule[ruleId] = { ruleName, count: 0 }
       }
+      errorsByRule[ruleId].count++
     })
 
-    const errorsByRule = answerDetails.reduce((acc, detail) => {
-      const ruleId = detail.problemType.rule_id
-      const ruleName = detail.problemType.rule.rule_name
-      acc[ruleId] = acc[ruleId] || { ruleName, count: 0 }
-      acc[ruleId].count++
-      return acc
-    }, {})
-    
-    // تحديث PerformanceAnalytic لكل قاعدة مخطئة (بشكل بسيط)
-    const ruleIds = Object.keys(errorsByRule).map(id => parseInt(id))
+    const ruleIds = Object.keys(errorsByRule)
+
     for (const ruleId of ruleIds) {
-        await prisma.performanceAnalytic.upsert({
-            where: { unique_student_rule: { student_id: studentId, rule_id: ruleId } },
-            update: { 
-                total_attempts: { increment: errorsByRule[ruleId].count },
-                weakness_score: { increment: errorsByRule[ruleId].count * 0.5 } // زيادة الضعف
-            },
-            create: {
-                student_id: studentId,
-                rule_id: ruleId,
-                total_attempts: errorsByRule[ruleId].count,
-                weakness_score: errorsByRule[ruleId].count * 0.5
-            }
+      const item = errorsByRule[ruleId]
+
+      const { data: existing } = await supabase
+        .from('performance_analytics')
+        .select('*')
+        .eq('student_id', studentId)
+        .eq('rule_id', ruleId)
+        .maybeSingle()
+
+      if (existing) {
+        await supabase
+          .from('performance_analytics')
+          .update({
+            total_attempts: existing.total_attempts + item.count,
+            weakness_score: existing.weakness_score + item.count * 0.5
+          })
+          .eq('id', existing.id)
+      } else {
+        await supabase.from('performance_analytics').insert({
+          student_id: studentId,
+          rule_id: ruleId,
+          total_attempts: item.count,
+          weakness_score: item.count * 0.5
         })
+      }
     }
 
     return { success: true, data: errorsByRule }
-  } catch (error) {
-    console.error('Get performance analysis error:', error)
-    return { success: false, error: 'فشل في جلب وتحليل الأداء.' }
+  } catch {
+    return { success: false, error: 'فشل في تحليل الأداء.' }
   }
 }
 
-/**
- * جلب توصيات الذكاء الاصطناعي للطالب (تحديث PerformanceAnalytic -> AiSuggestion).
- * @param {number} studentId - رقم تعريف الطالب.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
- */
 export async function getRecommendations(studentId) {
   try {
-    // جلب القواعد ذات أعلى ضعف
-    const weakRules = await prisma.performanceAnalytic.findMany({
-      where: { student_id: studentId, weakness_score: { gt: 0 } },
-      orderBy: { weakness_score: 'desc' },
-      take: 3,
-      include: { rule: { select: { rule_id: true, rule_name: true } } }
-    })
+    const { data: weakRules } = await supabase
+      .from('performance_analytics')
+      .select(`
+        rule_id,
+        weakness_score,
+        mastery_level,
+        rule:rules(rule_name)
+      `)
+      .eq('student_id', studentId)
+      .gt('weakness_score', 0)
+      .order('weakness_score', { ascending: false })
+      .limit(3)
 
-    const suggestions = weakRules.map(wr => ({
-      ruleId: wr.rule_id,
-      ruleName: wr.rule.rule_name,
-      reason: `ضعف في قاعدة ${wr.rule.rule_name} (نقاط الضعف: ${wr.weakness_score.toFixed(2)})`,
-      priority: 5 - wr.mastery_level?.length || 1, // منطق افتراضي
+    const suggestions = weakRules.map(w => ({
+      ruleId: w.rule_id,
+      ruleName: w.rule.rule_name,
+      reason: `ضعف في ${w.rule.rule_name} (${w.weakness_score})`,
+      priority: 5
     }))
-    
-    // حفظ التوصيات في AiSuggestion
-    for (const suggestion of suggestions) {
-        await prisma.aiSuggestion.upsert({
-            where: { suggestion_id: 0 }, // استخدام منطق أكثر تعقيداً لتجنب التكرار
-            update: {}, // عدم التحديث هنا
-            create: {
-                student_id: studentId,
-                suggested_rule_id: suggestion.ruleId,
-                reason: suggestion.reason,
-                priority: suggestion.priority
-            }
-        })
+
+    for (const s of suggestions) {
+      await supabase.from('ai_suggestions').insert({
+        student_id: studentId,
+        suggested_rule_id: s.ruleId,
+        reason: s.reason,
+        priority: s.priority
+      })
     }
-    
+
     return { success: true, data: suggestions }
-  } catch (error) {
-    console.error('Get recommendations error:', error)
+  } catch {
     return { success: false, error: 'فشل في جلب التوصيات.' }
   }
 }
