@@ -7,7 +7,7 @@ export const fontInter = localFont({
   src: [
     { 
         // 🔑 تم تغيير المسار إلى: /fonts/Inter/...
-        path: '@public/fonts/Inter/Inter-VariableFont_opsz,wght.ttf', 
+        path: '../fonts/Inter/Inter-VariableFont_opsz,wght.ttf', 
         style: 'normal' 
     },
   ],
@@ -21,7 +21,7 @@ export const fontFredoka = localFont({
   src: [
     { 
         // 🔑 تم تغيير المسار إلى: /fonts/Fredoka/...
-        path: '@public/fonts/Fredoka/Fredoka-VariableFont_wdth,wght.ttf', 
+        path: '/fonts/Fredoka/Fredoka-VariableFont_wdth,wght.ttf', 
         style: 'normal' 
     },
   ],
@@ -35,13 +35,13 @@ export const fontAmiri = localFont({
   src: [
     { 
         // 🔑 تم تغيير المسار إلى: /fonts/Amiri/...
-        path: '@public/fonts/Amiri/Amiri-Regular.ttf', 
+        path: '/fonts/Amiri/Amiri-Regular.ttf', 
         weight: '400', 
         style: 'normal' 
     },
     { 
         // 🔑 تم تغيير المسار إلى: /fonts/Amiri/...
-        path: '@public/fonts/Amiri/Amiri-Bold.ttf', 
+        path: '/fonts/Amiri/Amiri-Bold.ttf', 
         weight: '700', 
         style: 'normal' 
     },

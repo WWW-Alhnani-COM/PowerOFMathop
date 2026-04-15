@@ -7,9 +7,9 @@ import {
   startChallenge, 
   submitChallengeAnswer,
   completeChallenge
-} from '@/actions/challenge.actions'
-import { getCurrentStudent } from '@/actions/auth.actions'
-import { getProblemsForSheet } from '@/actions/sheet.actions'
+} from '../../../actions/challenge.actions'
+import { getCurrentStudent } from '../../../actions/auth.actions'
+import { getProblemsForSheet } from '../../../actions/sheet.actions'
 
 // أنواع المسائل
 const PROBLEM_TYPES = {

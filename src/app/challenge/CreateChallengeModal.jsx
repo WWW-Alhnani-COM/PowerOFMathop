@@ -3,7 +3,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createChallenge } from '@/actions/challenge.actions';
+import { createChallenge } from '../../actions/challenge.actions';
 
 export default function CreateChallengeModal({ studentId, sheets }) {
   const router = useRouter();

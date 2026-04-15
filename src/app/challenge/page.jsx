@@ -4,16 +4,16 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Header from '@/components/layout/Header'
+import Header from '../../components/layout/Header.tsx'
 import {
   getStudentChallenges,
   getPublicChallenges,
   getActiveChallenges,
   cancelChallenge,
   respondToChallenge
-} from '@/actions/challenge.actions'
+} from '../../actions/challenge.actions'
 
-import { getCurrentStudent, logoutStudent } from '@/actions/auth.actions'
+import { getCurrentStudent, logoutStudent } from '../../actions/auth.actions'
 // ثوابت حالة التحدي
 const CHALLENGE_STATUS = {
   PENDING: 'pending',

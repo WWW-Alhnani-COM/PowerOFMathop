@@ -1,7 +1,7 @@
 // src/actions/sheet.actions.js
 
 'use server';
-import { createClient } from '@/utils/supabase/server';
+import { createClient } from '@utils/supabase/server';
 import { cookies } from 'next/headers';
 import { validateSession } from './auth.actions';
 

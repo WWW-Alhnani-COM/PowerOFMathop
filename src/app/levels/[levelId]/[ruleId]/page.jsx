@@ -3,10 +3,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import Header from '@/components/layout/Header';
-import { getSheetsByRule } from '@/actions/level.actions';
-import { generatePracticeSession } from '@/actions/generator.actions';
-import { getStudentSheetResults, createAutoSheetIfNeeded } from '@/actions/sheet.actions';
+import Header from '../../../../components/layout/Header.tsx';
+import { getSheetsByRule } from '../../../../actions/level.actions';
+import { generatePracticeSession } from '../../../../actions/generator.actions';
+import { getStudentSheetResults, createAutoSheetIfNeeded } from '../../../../actions/sheet.actions';
 
 export default function RuleSheetsPage() {
   const router = useRouter();

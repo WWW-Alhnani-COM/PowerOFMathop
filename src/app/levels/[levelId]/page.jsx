@@ -3,8 +3,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import Header from '@/components/layout/Header';
-import { getRulesByLevel } from '@/actions/level.actions';
+import Header from '../../../components/layout/Header.tsx';
+import { getRulesByLevel } from '../../../actions/level.actions';
 
 export default function LevelRulesPage() {
   const router = useRouter();

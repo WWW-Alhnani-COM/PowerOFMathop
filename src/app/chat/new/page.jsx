@@ -4,10 +4,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import Header from '@/components/layout/Header';
+import Header from '../../components/layout/Header.tsx';
 
 // ⚠️ استبدل هذه الدوال بـ Actions الحقيقية لديك
-// import { getMessages, sendMessage, markAsRead } from '@/actions/chat.actions';
+// import { getMessages, sendMessage, markAsRead } from '../../actions/chat.actions';
 
 const ChatPage = () => {
   const router = useRouter();

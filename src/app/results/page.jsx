@@ -3,8 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Header from '@/components/layout/Header';
-import { getSheetResults } from '@/actions/results.actions'; // تأكد من المسار
+import Header from '../../components/layout/Header.tsx';
+import { getSheetResults } from '../../actions/results.actions'; // تأكد من المسار
 import { toast } from 'react-hot-toast';
 
 export default function ResultsPage() {

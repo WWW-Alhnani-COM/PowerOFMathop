@@ -4,7 +4,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { joinChallenge } from '@/actions/challenge.actions';
+import { joinChallenge } from '../../actions/challenge.actions';
 
 export default function ChallengeCard({ challenge, studentId, showDetails = false }) {
   const router = useRouter();
