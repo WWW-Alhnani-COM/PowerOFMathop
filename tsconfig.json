@@ -24,8 +24,7 @@
   "@actions/*": ["./actions/*"],
   "@components/*": ["./components/*"],
   "@lib/*": ["./lib/*"],
-  "@utils/*": ["./utils/*"]
-}
+"@utils/*": ["./src/utils/*"]}
   },
   "include": [
     "next-env.d.ts",
