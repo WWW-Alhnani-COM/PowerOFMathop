@@ -2,6 +2,7 @@
 
 'use server';
 import { createClient } from '@/utils/supabase/server';
+import { cookies } from 'next/headers';
 import { validateSession } from './auth.actions';
 
 function toPlain(data) {
@@ -13,7 +14,7 @@ function toPlain(data) {
 // ============================================
 export async function getSheetInfo(sheetId) {
   try {
-    const supabase = createClient((await validateSession()).cookieStore);
+    const supabase = createClient(await cookies());
     const { data: sheet, error } = await supabase
       .from('sheets')
       .select(`*, level:levels(level_name, color, icon), rule:rules(rule_name, description, icon)`)
@@ -33,7 +34,7 @@ export async function getSheetInfo(sheetId) {
 // ============================================
 export async function getStudentSheets(studentId) {
   try {
-    const supabase = createClient((await validateSession()).cookieStore);
+    const supabase = createClient(await cookies());
     const { data: student } = await supabase
       .from('students')
       .select('current_level_id')
@@ -83,7 +84,7 @@ export async function getStudentSheetResults(studentId, sheetIds) {
       sheetIds = [sheetIds];
     }
 
-    const supabase = createClient((await validateSession()).cookieStore);
+    const supabase = createClient(await cookies());
     const { data: results, error } = await supabase
       .from('sheet_results')
       .select('*')
@@ -103,6 +104,38 @@ export async function getStudentSheetResults(studentId, sheetIds) {
       success: false,
       error: error.message || 'فشل جلب النتائج',
     };
+  }
+}
+
+export async function getProblemsForSheet(sheetId) {
+  try {
+    const supabase = createClient(await cookies());
+
+    const { data: sheet, error: sheetError } = await supabase
+      .from('sheets')
+      .select('sheet_id, rule_id')
+      .eq('sheet_id', Number(sheetId))
+      .single();
+
+    if (sheetError || !sheet) {
+      return { success: false, error: 'الورقة غير موجودة' };
+    }
+
+    const { data: problemTypes, error: problemError } = await supabase
+      .from('problem_types')
+      .select('*')
+      .eq('rule_id', sheet.rule_id)
+      .eq('is_active', true)
+      .order('problem_type_id', { ascending: true });
+
+    if (problemError) {
+      return { success: false, error: problemError.message || 'فشل جلب المسائل' };
+    }
+
+    return { success: true, data: toPlain(problemTypes) };
+  } catch (error) {
+    console.error('خطأ في جلب المسائل:', error);
+    return { success: false, error: error.message || 'فشل جلب المسائل' };
   }
 }
 

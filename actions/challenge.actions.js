@@ -66,6 +66,60 @@ export async function getStudentChallenges(filter = 'all') {
     }
 }
 
+export async function getAvailableSheetsForChallenge() {
+    try {
+        const session = await validateSession()
+        if (!session.success) return session
+
+        const sheets = await prisma.sheet.findMany({
+            where: { is_active: true },
+            select: {
+                sheet_id: true,
+                sheet_name: true,
+                level_id: true,
+                rule_id: true,
+                total_problems: true,
+                difficulty_level: true,
+                time_limit: true
+            },
+            orderBy: [{ difficulty_level: 'asc' }, { sheet_name: 'asc' }]
+        })
+
+        return { success: true, data: sheets }
+    } catch (error) {
+        console.error('Error fetching available sheets:', error)
+        return { success: false, error: 'فشل جلب الورقات المتاحة' }
+    }
+}
+
+export async function getChallengeDetails(challenge_id) {
+    try {
+        const challenge = await prisma.challenge.findUnique({
+            where: { challenge_id },
+            include: {
+                challenger: { select: { student_id: true, student_name: true, total_score: true } },
+                challenged: { select: { student_id: true, student_name: true, total_score: true } },
+                winner: { select: { student_name: true } },
+                sheet: {
+                    include: {
+                        level: { select: { level_id: true, level_name: true, color: true } },
+                        rule: { select: { rule_id: true, rule_name: true, icon: true } }
+                    }
+                }
+            }
+        })
+
+        if (!challenge) {
+            return { success: false, error: 'التحدي غير موجود' }
+        }
+
+        return { success: true, data: challenge }
+    } catch (error) {
+        console.error('Error fetching challenge details:', error)
+        return { success: false, error: 'فشل جلب تفاصيل التحدي' }
+    }
+}
+
 // ***************************************************************
 // 3. إنشاء تحدي جديد (مع التحقق من المستوى)
 // ***************************************************************

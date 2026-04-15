@@ -215,6 +215,10 @@ export async function validateSession() {
     }
 }
 
+export async function getCurrentStudent() {
+    return validateSession()
+}
+
 export async function updateStudentLanguage(language) {
     try {
         const studentId = await getSessionStudentId()
