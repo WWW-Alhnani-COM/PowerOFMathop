@@ -1,7 +1,7 @@
 // src/app/challenge/[id]/page.jsx - الإصدار المصحح
 import ChallengeDetailsClient from './ChallengeDetailsClient'
-import { getChallengeDetails } from '../../../actions/challenge.actions'
-import { getCurrentStudent } from '../../../actions/auth.actions'
+import { getChallengeDetails } from '../../../../actions/challenge.actions'
+import { getCurrentStudent } from '../../../../actions/auth.actions'
 
 export default async function ChallengeDetailsPage({ params }) {
   try {

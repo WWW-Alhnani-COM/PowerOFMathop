@@ -4,9 +4,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Header from '../../../components/layout/Header.tsx'
-import { createChallenge, getAvailableSheetsForChallenge, searchStudentsForChallenge } from '../../../actions/challenge.actions'
-import { getCurrentStudent } from '../../../actions/auth.actions'
+import Header from '../../../../components/layout/Header'
+import { createChallenge, getAvailableSheetsForChallenge, searchStudentsForChallenge } from '@actions/challenge.actions'
+import { getCurrentStudent } from '../../../../actions/auth.actions'
 
 export default function CreateChallengePage() {
   const [formData, setFormData] = useState({

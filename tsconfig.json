@@ -19,18 +19,11 @@
       }
     ],
     "paths": {
-      "@src/*": ["./src/*"],
+      "@/*": ["./src/*"],
       "@actions/*": ["./actions/*"],
       "@components/*": ["./components/*"],
       "@lib/*": ["./lib/*"],
-      "@utils/*": ["./utils/*"],
-      "@/*": [
-        "./src/*",
-        "./actions/*",
-        "./components/*",
-        "./lib/*",
-        "./utils/*"
-      ]
+      "@utils/*": ["./utils/*"]
     }
   },
   "include": [
@@ -41,7 +34,7 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     "src/auth.js",
-    "src/app/dashboard/page.tsx4",
+    "src/app/dashboard/page.tsx",
     "src/app/page.jsx"
   ],
   "exclude": ["node_modules"]

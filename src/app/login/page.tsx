@@ -2,7 +2,7 @@
 // هذا الملف هو مكون خادم (Server Component)
 
 // 1. الاستيرادات الضرورية
-import { loginStudent, getBranches } from '@actions/auth.actions'; 
+import { loginStudent, getBranches } from '../../../actions/auth.actions'; 
 import LoginFormClient from './loginFormClient';
 import MathBackground from './MathBackground';
 

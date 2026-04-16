@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { respondToChallenge, cancelChallenge, startChallenge } from '../../../actions/challenge.actions'
+import { respondToChallenge, cancelChallenge, startChallenge } from '../../../../actions/challenge.actions'
 
 // تعريف محلي للثوابت
 const CHALLENGE_STATUS = {

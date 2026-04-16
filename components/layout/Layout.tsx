@@ -10,7 +10,7 @@ const cairo = Cairo({
 });
 
 // استيراد MainLayout (تأكد من مسار الملف الصحيح)
-import MainLayout from '@layout/MainLayout'; // عدّل المسار إذا كان مختلفًا
+import MainLayout from '../layout/MainLayout'; // عدّل المسار إذا كان مختلفًا
 
 // ... (تعريف metadata)
 

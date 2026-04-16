@@ -1,28 +1,36 @@
 // File: app/join/page.tsx
 
+export const dynamic = 'force-dynamic';
+
 import { createClient } from '@supabase/supabase-js'
 import JoinForm from './JoinForm'
 
 // إنشاء عميل Supabase (Server Side)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // مهم للسيرفر
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
 )
 
 // تحديد مدة التنفيذ
 export const maxDuration = 30
 
 export default async function JoinPage() {
+  let branches: Array<{ branch_id: number; branch_name: string }> = []
+  let branchesError: string | null = null
 
-  // 1. جلب الفروع بدل Prisma
-  const { data: branches, error: branchesError } = await supabase
-    .from('branch')
-    .select('branch_id, branch_name')
-    .order('branch_name', { ascending: true })
+  try {
+    const result = await supabase
+      .from('branch')
+      .select('branch_id, branch_name')
+      .order('branch_name', { ascending: true })
 
-  if (branchesError) {
-    console.error(branchesError)
-    throw new Error('Failed to load branches')
+    if (result.error) {
+      branchesError = result.error.message
+    } else {
+      branches = result.data || []
+    }
+  } catch (error: any) {
+    branchesError = error?.message || String(error)
   }
 
   // 2. Server Action

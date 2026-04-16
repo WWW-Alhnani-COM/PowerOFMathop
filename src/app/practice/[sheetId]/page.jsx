@@ -3,8 +3,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import Header from '../../components/layout/Header.tsx';
-import { startPracticeSession, submitAnswer, finishPracticeSession } from '../../../actions/sheet.actions';
+import Header from '../../../../components/layout/Header';
+import { startPracticeSession, submitAnswer, finishPracticeSession } from '../../../../actions/sheet.actions';
 
 export default function PracticePage() {
   const router = useRouter();

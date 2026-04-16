@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Header from '@components/layout/Header';
+import Header from '../../../components/layout/Header';
 import { 
   getChatList, 
   getUnreadCount, 

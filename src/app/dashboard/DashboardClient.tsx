@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Header from "../../components/layout/Header.tsx";
+import Header from "../../../components/layout/Header";
 
 type AnyRecord = Record<string, any>;
 

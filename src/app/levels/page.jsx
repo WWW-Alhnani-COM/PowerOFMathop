@@ -3,11 +3,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Header from '../../components/layout/Header.tsx';
+import Header from '../../../components/layout/Header';
 import { 
   getActiveLevelsWithStats, 
   getStudentProgress 
-} from '@actions/level.actions';
+} from '../../../actions/level.actions';
 
 export default function LevelsPage() {
   const router = useRouter();
