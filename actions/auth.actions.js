@@ -5,14 +5,15 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export const createClient = async (cookieStore) => {
   const store = cookieStore || await cookies();
   return createServerClient(
     supabaseUrl,
     supabaseKey,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
