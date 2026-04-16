@@ -167,8 +167,7 @@ export async function loginStudent(studentName, branchId) {
         }
     } catch (error) {
         console.error('Login error:', error)
-        return { success: false, error: 'حدث خطأ في الاتصال بـ Supabase.' }
-    }
+return { success: false, error: error.message }    }
 }
 
 export async function getBranches() {
