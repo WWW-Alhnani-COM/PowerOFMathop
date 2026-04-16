@@ -76,7 +76,7 @@ export async function getSessionStudentId() {
 
         // التحقق من وجود الطالب وتحديث وقت النشاط
         const { data: student, error } = await supabase
-            .from('student')
+            .from('students')
             .select('student_id')
             .eq('student_id', idNum)
             .single()
@@ -87,7 +87,7 @@ export async function getSessionStudentId() {
         }
 
         await supabase
-            .from('student')
+            .from('students')
             .update({ updated_at: new Date().toISOString() })
             .eq('student_id', idNum)
 
@@ -113,7 +113,7 @@ export async function loginStudent(studentName, branchId) {
 
         // البحث عن الطالب
         const { data: student, error: searchError } = await supabase
-            .from('student')
+            .from('students')
             .select('*, branch(*), level(*)')
             .eq('student_name', studentName)
             .eq('branch_id', branchIdInt)
@@ -126,7 +126,7 @@ export async function loginStudent(studentName, branchId) {
         if (!student) {
             // إنشاء طالب جديد (Auto-Registration)
             const { data: newStudent, error: createError } = await supabase
-                .from('student')
+                .from('students')
                 .insert([{
                     student_name: studentName,
                     branch_id: branchIdInt,
@@ -141,7 +141,7 @@ export async function loginStudent(studentName, branchId) {
 
         // تحديث وقت النشاط والـ Cookies
         await supabase
-            .from('student')
+            .from('students')
             .update({ updated_at: new Date().toISOString() })
             .eq('student_id', targetStudent.student_id)
 
@@ -202,7 +202,7 @@ export async function validateSession() {
 
         const supabase = await createClient()
         const { data: student, error } = await supabase
-            .from('student')
+            .from('students')
             .select('*, level(*)')
             .eq('student_id', studentId)
             .single()
@@ -226,7 +226,7 @@ export async function updateStudentLanguage(language) {
 
         const supabase = await createClient()
         const { error } = await supabase
-            .from('student')
+            .from('students')
             .update({ preferred_language: language })
             .eq('student_id', studentId)
 
