@@ -12,7 +12,6 @@ export const createClient = async (cookieStore) => {
   const store = cookieStore || await cookies();
   return createServerClient(
     supabaseUrl,
-    supabaseKey,
     supabaseAnonKey,
     {
       cookies: {
