@@ -114,7 +114,7 @@ export async function loginStudent(studentName, branchId) {
         // البحث عن الطالب
         const { data: student, error: searchError } = await supabase
             .from('students')
-            .select('*, branch(*), level(*)')
+            .select('*, branches(*), levels(*)')
             .eq('student_name', studentName)
             .eq('branch_id', branchIdInt)
             .maybeSingle()
@@ -132,7 +132,7 @@ export async function loginStudent(studentName, branchId) {
                     branch_id: branchIdInt,
                     current_level_id: 1
                 }])
-                .select('*, branch(*), level(*)')
+                .select('*, branches(*), levels(*)')
                 .single()
 
             if (createError) throw createError
