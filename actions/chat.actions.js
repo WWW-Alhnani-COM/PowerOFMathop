@@ -15,12 +15,20 @@ export async function sendMessage(senderId, receiverId, messageText) {
     return { success: false, error: "بيانات غير صالحة" }
   }
 
-  const { data: students, error: studentError } = await supabase
+  if (s === r) {
+    return { success: false, error: "لا يمكن إرسال رسالة لنفسك" }
+  }
+
+  const { data: students, error: studentsError } = await supabase
     .from('students')
     .select('student_id')
     .in('student_id', [s, r])
 
-  if (studentError || !students?.length) {
+  if (studentsError) {
+    return { success: false, error: studentsError.message }
+  }
+
+  if (!students || students.length !== 2) {
     return { success: false, error: "أحد الطلاب غير موجود" }
   }
 
@@ -32,7 +40,8 @@ export async function sendMessage(senderId, receiverId, messageText) {
       message_text: messageText.trim(),
       message_type: 'text',
       is_approved: true,
-      read_at: null
+      is_flagged: false,
+      read_at: null,
     })
     .select()
     .single()
@@ -45,7 +54,43 @@ export async function sendMessage(senderId, receiverId, messageText) {
 }
 
 // =====================================================
-// جلب المحادثات
+// جلب الرسائل بين طالبين
+// =====================================================
+export async function getMessagesBetweenStudents(studentId, otherId) {
+  const supabase = createClient()
+
+  const s = Number(studentId)
+  const o = Number(otherId)
+
+  if (!Number.isInteger(s) || !Number.isInteger(o)) {
+    return { success: false, error: "معرفات غير صالحة" }
+  }
+
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .or(
+      `and(sender_id.eq.${s},receiver_id.eq.${o}),and(sender_id.eq.${o},receiver_id.eq.${s})`
+    )
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  // mark as read
+  await supabase
+    .from('chat_messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('receiver_id', s)
+    .eq('sender_id', o)
+    .is('read_at', null)
+
+  return { success: true, data }
+}
+
+// =====================================================
+// جلب المحادثات (Chat List)
 // =====================================================
 export async function getChatList(studentId) {
   const supabase = createClient()
@@ -57,14 +102,14 @@ export async function getChatList(studentId) {
   }
 
   const { data, error } = await supabase
-    .from("chat_messages")
+    .from('chat_messages')
     .select(`
       *,
       sender:students!chat_messages_sender_id_fkey(student_id, student_name),
       receiver:students!chat_messages_receiver_id_fkey(student_id, student_name)
     `)
     .or(`sender_id.eq.${id},receiver_id.eq.${id}`)
-    .order("created_at", { ascending: false })
+    .order('created_at', { ascending: false })
 
   if (error) {
     return { success: false, error: error.message }
@@ -72,10 +117,9 @@ export async function getChatList(studentId) {
 
   const map = new Map()
 
-  data.forEach((msg) => {
+  for (const msg of data || []) {
     const otherId = msg.sender_id === id ? msg.receiver_id : msg.sender_id
-
-    if (!otherId) return
+    if (!otherId) continue
 
     const otherStudent = msg.sender_id === id ? msg.receiver : msg.sender
 
@@ -93,47 +137,12 @@ export async function getChatList(studentId) {
     if (msg.receiver_id === id && msg.read_at === null) {
       map.get(otherId).unreadCount++
     }
-  })
+  }
 
   return {
     success: true,
     data: Array.from(map.values()),
   }
-}
-
-// =====================================================
-// جلب الرسائل بين طالبين
-// =====================================================
-export async function getMessagesBetweenStudents(studentId, otherId) {
-  const supabase = createClient()
-
-  const s = Number(studentId)
-  const o = Number(otherId)
-
-  if (!Number.isInteger(s) || !Number.isInteger(o)) {
-    return { success: false, error: "معرفات غير صالحة" }
-  }
-
-  const { data, error } = await supabase
-    .from("chat_messages")
-    .select("*")
-    .or(
-      `and(sender_id.eq.${s},receiver_id.eq.${o}),and(sender_id.eq.${o},receiver_id.eq.${s})`
-    )
-    .order("created_at", { ascending: true })
-
-  if (error) {
-    return { success: false, error: error.message }
-  }
-
-  await supabase
-    .from("chat_messages")
-    .update({ read_at: new Date().toISOString() })
-    .eq("receiver_id", s)
-    .eq("sender_id", o)
-    .is("read_at", null)
-
-  return { success: true, data }
 }
 
 // =====================================================
@@ -149,10 +158,10 @@ export async function getUnreadCount(studentId) {
   }
 
   const { count, error } = await supabase
-    .from("chat_messages")
-    .select("*", { count: "exact", head: true })
-    .eq("receiver_id", id)
-    .is("read_at", null)
+    .from('chat_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('receiver_id', id)
+    .is('read_at', null)
 
   if (error) {
     return { success: false, error: error.message }
@@ -162,7 +171,7 @@ export async function getUnreadCount(studentId) {
 }
 
 // =====================================================
-// جلب الطلاب للدردشة
+// الطلاب النشطين
 // =====================================================
 export async function getActiveStudentsForChat(currentStudentId) {
   const supabase = createClient()
@@ -174,15 +183,15 @@ export async function getActiveStudentsForChat(currentStudentId) {
   }
 
   const { data, error } = await supabase
-    .from("students")
+    .from('students')
     .select(`
       student_id,
       student_name,
       branch:branches(branch_name)
     `)
-    .eq("status", "active")
-    .neq("student_id", id)
-    .order("student_name", { ascending: true })
+    .eq('status', 'active')
+    .neq('student_id', id)
+    .order('student_name', { ascending: true })
 
   if (error) {
     return { success: false, error: error.message }
@@ -204,13 +213,13 @@ export async function deleteMessage(messageId, senderId) {
     return { success: false, error: "بيانات غير صالحة" }
   }
 
-  const { data: msg, error: fetchError } = await supabase
-    .from("chat_messages")
-    .select("sender_id")
-    .eq("message_id", msgId)
+  const { data: msg, error } = await supabase
+    .from('chat_messages')
+    .select('sender_id')
+    .eq('message_id', msgId)
     .single()
 
-  if (fetchError || !msg) {
+  if (error || !msg) {
     return { success: false, error: "الرسالة غير موجودة" }
   }
 
@@ -218,13 +227,13 @@ export async function deleteMessage(messageId, senderId) {
     return { success: false, error: "غير مصرح" }
   }
 
-  const { error } = await supabase
-    .from("chat_messages")
+  const { error: deleteError } = await supabase
+    .from('chat_messages')
     .delete()
-    .eq("message_id", msgId)
+    .eq('message_id', msgId)
 
-  if (error) {
-    return { success: false, error: error.message }
+  if (deleteError) {
+    return { success: false, error: deleteError.message }
   }
 
   return { success: true }
