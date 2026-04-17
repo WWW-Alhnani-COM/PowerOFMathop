@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from "@/lib/supabaseClient"
+import { createClient } from "../lib/supabaseClient"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 
 // =====================================================
