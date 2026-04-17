@@ -1,33 +1,10 @@
 'use server'
 
-import { createServerClient } from "@supabase/ssr"
+import { createClient } from "@/lib/supabaseClient"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
-import { cookies } from "next/headers"
 
 // =====================================================
-// Supabase SSR Client (RLS-safe)
-// =====================================================
-export function createClient() {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll: () => cookies().getAll?.() ?? [],
-        setAll: (cookiesToSet) => {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookies().set(name, value, options)
-            })
-          } catch {}
-        },
-      },
-    }
-  )
-}
-
-// =====================================================
-// 🔥 Admin Client (bypasses RLS)
+// Admin Client (bypasses RLS)
 // =====================================================
 const supabaseAdmin = createAdminClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -124,7 +101,7 @@ export async function getUnreadCount(studentId) {
 }
 
 // =====================================================
-// 3. جلب الرسائل بين طالبين + mark as read
+// 3. جلب الرسائل بين طالبين
 // =====================================================
 export async function getMessagesBetweenStudents(studentId, otherId) {
   const supabase = createClient()
@@ -163,7 +140,7 @@ export async function getMessagesBetweenStudents(studentId, otherId) {
 }
 
 // =====================================================
-// 4. إرسال رسالة (secure - no spoofing)
+// 4. إرسال رسالة (Secure)
 // =====================================================
 export async function sendMessage(senderId, receiverId, messageText) {
   const supabase = createClient()
@@ -175,7 +152,7 @@ export async function sendMessage(senderId, receiverId, messageText) {
     return { success: false, error: 'بيانات غير صالحة' }
   }
 
-  // verify sender from session (anti spoof)
+  // التحقق من المستخدم الحالي (من الجلسة)
   const {
     data: { user }
   } = await supabase.auth.getUser()
@@ -187,7 +164,7 @@ export async function sendMessage(senderId, receiverId, messageText) {
   const { data, error } = await supabase
     .from('chat_messages')
     .insert({
-      sender_id: s, // أو استبدلها بـ user.id إذا عندك mapping صحيح
+      sender_id: s,
       receiver_id: r,
       message_text: messageText,
       is_approved: true,
