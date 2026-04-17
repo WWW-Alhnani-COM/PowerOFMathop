@@ -7,7 +7,10 @@ import { cookies } from 'next/headers'
 // Helper: Supabase Server Client
 // =====================================================
 function supabaseServer() {
-  return createClient(cookies())
+  return createClient(
+    process.env.SUPABASE_SERVICE_ROLE_KEYL,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  )
 }
 
 // =====================================================
