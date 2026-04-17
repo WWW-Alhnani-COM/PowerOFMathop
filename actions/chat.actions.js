@@ -1,7 +1,7 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { supabaseAdmin } from './supabaseAdmin'
+  import { cookies } from 'next/headers'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -20,7 +20,7 @@ export function getSupabase() {
 // 1. جلب قائمة المحادثات
 // =====================================================
 export async function getChatList(studentId) {
-const supabase = getSupabase()
+const supabase = supabaseAdmin
 
   const studentIdInt = parseInt(studentId)
   if (isNaN(studentIdInt)) {
@@ -85,7 +85,7 @@ const supabase = getSupabase()
 // 2. عدد الرسائل غير المقروءة
 // =====================================================
 export async function getUnreadCount(studentId) {
-const supabase = getSupabase()
+const supabase = supabaseAdmin
 
   const studentIdInt = parseInt(studentId)
   if (isNaN(studentIdInt)) {
@@ -111,7 +111,7 @@ const supabase = getSupabase()
 // 3. جلب الرسائل بين طالبين
 // =====================================================
 export async function getMessagesBetweenStudents(studentId, otherId) {
-const supabase = getSupabase()
+const supabase = supabaseAdmin
 
   const studentIdInt = parseInt(studentId)
   const otherIdInt = parseInt(otherId)
@@ -149,7 +149,7 @@ const supabase = getSupabase()
 // 4. إرسال رسالة
 // =====================================================
 export async function sendMessage(senderId, receiverId, messageText) {
-const supabase = getSupabase()
+const supabase = supabaseAdmin
 
   const senderIdInt = parseInt(senderId)
   const receiverIdInt = parseInt(receiverId)
@@ -184,7 +184,7 @@ const supabase = getSupabase()
 // 5. جلب الطلاب النشطين
 // =====================================================
 export async function getActiveStudentsForChat(currentStudentId) {
-const supabase = getSupabase()
+const supabase = supabaseAdmin
 
   const id = parseInt(currentStudentId)
   if (isNaN(id)) {
@@ -215,7 +215,7 @@ const supabase = getSupabase()
 // 6. تحديد رسالة كمقروءة
 // =====================================================
 export async function markMessageAsRead(messageId, studentId) {
-const supabase = getSupabase()
+const supabase = supabaseAdmin
 
   try {
     const { data, error } = await supabase
@@ -238,7 +238,7 @@ const supabase = getSupabase()
 // 7. حذف رسالة
 // =====================================================
 export async function deleteMessage(messageId, senderId) {
-const supabase = getSupabase()
+const supabase = supabaseAdmin
 
   try {
     // تحقق أولاً
