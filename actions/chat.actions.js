@@ -1,10 +1,11 @@
 'use server'
 
 import { createServerClient } from "@supabase/ssr"
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { cookies } from "next/headers"
 
 // =====================================================
-// Supabase SSR Client (نفس auth.actions.js)
+// Supabase SSR Client (للقراءة فقط)
 // =====================================================
 export async function createClient() {
   const cookieStore = await cookies()
@@ -22,14 +23,23 @@ export async function createClient() {
             cookiesToSet.forEach(({ name, value, options }) => {
               cookieStore.set(name, value, options)
             })
-          } catch {
-            // Server Components safe ignore
-          }
+          } catch {}
         },
       },
     }
   )
 }
+
+// =====================================================
+// 🔥 Admin Client (يتجاوز RLS)
+// =====================================================
+const supabaseAdmin = createAdminClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  {
+    auth: { persistSession: false }
+  }
+)
 
 // =====================================================
 // 1. جلب قائمة المحادثات
@@ -142,8 +152,8 @@ export async function getMessagesBetweenStudents(studentId, otherId) {
     return { success: false, error: error.message }
   }
 
-  // mark as read
-  await supabase
+  // 🔥 mark as read باستخدام admin
+  await supabaseAdmin
     .from('chat_messages')
     .update({ read_at: new Date().toISOString() })
     .eq('receiver_id', studentIdInt)
@@ -157,10 +167,10 @@ export async function getMessagesBetweenStudents(studentId, otherId) {
 }
 
 // =====================================================
-// 4. إرسال رسالة
+// 4. إرسال رسالة (🔥 FIX هنا)
 // =====================================================
 export async function sendMessage(senderId, receiverId, messageText) {
-  const supabase = await createClient()
+  const supabase = supabaseAdmin
 
   const s = parseInt(senderId)
   const r = parseInt(receiverId)
@@ -222,9 +232,7 @@ export async function getActiveStudentsForChat(currentStudentId) {
 // 6. تحديد رسالة كمقروءة
 // =====================================================
 export async function markMessageAsRead(messageId, studentId) {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('chat_messages')
     .update({ read_at: new Date().toISOString() })
     .eq('message_id', messageId)
@@ -243,9 +251,7 @@ export async function markMessageAsRead(messageId, studentId) {
 // 7. حذف رسالة
 // =====================================================
 export async function deleteMessage(messageId, senderId) {
-  const supabase = await createClient()
-
-  const { data: message, error: fetchError } = await supabase
+  const { data: message, error: fetchError } = await supabaseAdmin
     .from('chat_messages')
     .select('sender_id')
     .eq('message_id', messageId)
@@ -259,7 +265,7 @@ export async function deleteMessage(messageId, senderId) {
     return { success: false, error: 'غير مصرح' }
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('chat_messages')
     .delete()
     .eq('message_id', messageId)
