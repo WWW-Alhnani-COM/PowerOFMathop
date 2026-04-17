@@ -1,11 +1,13 @@
 'use server'
 
-import { supabase } from '../lib/supabaseAdmin'
+import { createClient } from '../lib/supabaseServer'
 
 // =====================================================
 // إرسال رسالة
 // =====================================================
 export async function sendMessage(senderId, receiverId, messageText) {
+  const supabase = createClient()
+
   const s = Number(senderId)
   const r = Number(receiverId)
 
@@ -13,41 +15,32 @@ export async function sendMessage(senderId, receiverId, messageText) {
     return { success: false, error: "بيانات غير صالحة" }
   }
 
-  if (s === r) {
-    return { success: false, error: "لا يمكن إرسال رسالة لنفسك" }
-  }
+  const { data: students } = await supabase
+    .from('students')
+    .select('student_id')
+    .in('student_id', [s, r])
 
-  // تحقق من وجود الطلاب
-  const { data: students, error: studentError } = await supabase
-    .from("students")
-    .select("student_id")
-    .in("student_id", [s, r])
-
-  if (studentError || !students || students.length < 2) {
-    return { success: false, error: "أحد الطلاب غير موجود" }
+  if (!students || students.length < 2) {
+    return { success: false, error: "الطالب غير موجود" }
   }
 
   const { data, error } = await supabase
-    .from("chat_messages")
+    .from('chat_messages')
     .insert({
       sender_id: s,
       receiver_id: r,
       message_text: messageText.trim(),
-      message_type: "text",
+      message_type: 'text',
       is_approved: true,
-      is_flagged: false,
-      read_at: null,
+      read_at: null
     })
     .select()
     .single()
 
-  if (error) {
-    return { success: false, error: error.message }
-  }
+  if (error) return { success: false, error: error.message }
 
   return { success: true, data }
 }
-
 // =====================================================
 // جلب المحادثات
 // =====================================================
