@@ -20,8 +20,9 @@ export async function sendMessage(senderId, receiverId, messageText) {
     .select('student_id')
     .in('student_id', [s, r])
 
-  if (!students || students.length < 2) {
-    return { success: false, error: "الطالب غير موجود" }
+  // ✅ الإصلاح هنا
+  if (!students?.length) {
+    return { success: false, error: "أحد الطلاب غير موجود" }
   }
 
   const { data, error } = await supabase
