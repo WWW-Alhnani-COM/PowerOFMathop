@@ -7,12 +7,12 @@ import { cookies } from "next/headers"
 // =====================================================
 // Supabase SSR Client (للقراءة فقط)
 // =====================================================
-export function createClient() {
-  const cookieStore = cookies() // ✅ لازم يكون موجود
+export async function createClient() {
+  const cookieStore = cookies()
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
@@ -29,7 +29,6 @@ export function createClient() {
     }
   )
 }
-
 // =====================================================
 // 🔥 Admin Client (يتجاوز RLS)
 // =====================================================
@@ -45,8 +44,8 @@ const supabaseAdmin = createAdminClient(
 // 1. جلب قائمة المحادثات
 // =====================================================
 export async function getChatList(studentId) {
-  const supabase = createClient()
-
+const supabase = await createClient()
+  
   const studentIdInt = parseInt(studentId)
   if (isNaN(studentIdInt)) {
     return { success: false, error: 'معرف طالب غير صالح' }
@@ -107,8 +106,7 @@ export async function getChatList(studentId) {
 // 2. عدد الرسائل غير المقروءة
 // =====================================================
 export async function getUnreadCount(studentId) {
-  const supabase = createClient()
-
+const supabase = await createClient()
   const id = parseInt(studentId)
   if (isNaN(id)) {
     return { success: false, error: 'معرف غير صالح' }
@@ -131,8 +129,7 @@ export async function getUnreadCount(studentId) {
 // 3. جلب الرسائل بين طالبين
 // =====================================================
 export async function getMessagesBetweenStudents(studentId, otherId) {
-  const supabase = createClient()
-
+const supabase = await createClient()
   const studentIdInt = parseInt(studentId)
   const otherIdInt = parseInt(otherId)
 
@@ -203,8 +200,7 @@ export async function sendMessage(senderId, receiverId, messageText) {
 // 5. جلب الطلاب النشطين
 // =====================================================
 export async function getActiveStudentsForChat(currentStudentId) {
-  const supabase = createClient()
-
+const supabase = await createClient()
   const id = parseInt(currentStudentId)
   if (isNaN(id)) {
     return { success: false, error: 'معرف غير صالح' }
