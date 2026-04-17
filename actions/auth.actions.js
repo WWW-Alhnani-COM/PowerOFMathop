@@ -3,7 +3,7 @@
 
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-
+import { revalidatePath } from "next/cache";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -203,7 +203,7 @@ export async function validateSession() {
         const supabase = await createClient()
         const { data: student, error } = await supabase
             .from('students')
-            .select('*, level(*)')
+            .select('*, levels(*)')
             .eq('student_id', studentId)
             .single()
 
