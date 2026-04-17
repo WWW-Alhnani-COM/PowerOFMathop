@@ -20,7 +20,7 @@ export function supabaseServer() {
 // 1. جلب قائمة المحادثات
 // =====================================================
 export async function getChatList(studentId) {
-  const supabase = await supabaseServer()
+  const supabase = supabaseServer()
 
   const studentIdInt = parseInt(studentId)
   if (isNaN(studentIdInt)) {
@@ -85,7 +85,7 @@ export async function getChatList(studentId) {
 // 2. عدد الرسائل غير المقروءة
 // =====================================================
 export async function getUnreadCount(studentId) {
-  const supabase = await supabaseServer()
+  const supabase = supabaseServer()
 
   const studentIdInt = parseInt(studentId)
   if (isNaN(studentIdInt)) {
@@ -111,7 +111,7 @@ export async function getUnreadCount(studentId) {
 // 3. جلب الرسائل بين طالبين
 // =====================================================
 export async function getMessagesBetweenStudents(studentId, otherId) {
-  const supabase = await supabaseServer()
+  const supabase = supabaseServer()
 
   const studentIdInt = parseInt(studentId)
   const otherIdInt = parseInt(otherId)
@@ -149,7 +149,7 @@ export async function getMessagesBetweenStudents(studentId, otherId) {
 // 4. إرسال رسالة
 // =====================================================
 export async function sendMessage(senderId, receiverId, messageText) {
-  const supabase = await supabaseServer()
+  const supabase = supabaseServer()
 
   const senderIdInt = parseInt(senderId)
   const receiverIdInt = parseInt(receiverId)
@@ -184,7 +184,7 @@ export async function sendMessage(senderId, receiverId, messageText) {
 // 5. جلب الطلاب النشطين
 // =====================================================
 export async function getActiveStudentsForChat(currentStudentId) {
-  const supabase = await supabaseServer()
+  const supabase = supabaseServer()
 
   const id = parseInt(currentStudentId)
   if (isNaN(id)) {
@@ -215,7 +215,7 @@ export async function getActiveStudentsForChat(currentStudentId) {
 // 6. تحديد رسالة كمقروءة
 // =====================================================
 export async function markMessageAsRead(messageId, studentId) {
-  const supabase = await supabaseServer()
+  const supabase = supabaseServer()
 
   try {
     const { data, error } = await supabase
@@ -238,7 +238,7 @@ export async function markMessageAsRead(messageId, studentId) {
 // 7. حذف رسالة
 // =====================================================
 export async function deleteMessage(messageId, senderId) {
-  const supabase = await supabaseServer()
+  const supabase = supabaseServer()
 
   try {
     // تحقق أولاً
