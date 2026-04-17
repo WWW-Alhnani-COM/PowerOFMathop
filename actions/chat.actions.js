@@ -7,8 +7,8 @@ import { cookies } from "next/headers"
 // =====================================================
 // Supabase SSR Client (للقراءة فقط)
 // =====================================================
-export async function createClient() {
-  const cookieStore = await cookies()
+export function createClient() {
+  const cookieStore = cookies() // ✅ لازم يكون موجود
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -45,7 +45,7 @@ const supabaseAdmin = createAdminClient(
 // 1. جلب قائمة المحادثات
 // =====================================================
 export async function getChatList(studentId) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const studentIdInt = parseInt(studentId)
   if (isNaN(studentIdInt)) {
@@ -107,7 +107,7 @@ export async function getChatList(studentId) {
 // 2. عدد الرسائل غير المقروءة
 // =====================================================
 export async function getUnreadCount(studentId) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const id = parseInt(studentId)
   if (isNaN(id)) {
@@ -131,7 +131,7 @@ export async function getUnreadCount(studentId) {
 // 3. جلب الرسائل بين طالبين
 // =====================================================
 export async function getMessagesBetweenStudents(studentId, otherId) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const studentIdInt = parseInt(studentId)
   const otherIdInt = parseInt(otherId)
@@ -203,7 +203,7 @@ export async function sendMessage(senderId, receiverId, messageText) {
 // 5. جلب الطلاب النشطين
 // =====================================================
 export async function getActiveStudentsForChat(currentStudentId) {
-  const supabase = await createClient()
+  const supabase = createClient()
 
   const id = parseInt(currentStudentId)
   if (isNaN(id)) {
