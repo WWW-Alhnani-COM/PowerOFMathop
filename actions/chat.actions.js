@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from "../lib/supabaseClient"
+import { supabase } from '../lib/supabaseAdmin'
 
 // =====================================================
 // 🔥 إرسال رسالة (PRODUCTION SAFE)
