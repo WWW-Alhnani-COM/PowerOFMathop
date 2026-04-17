@@ -3,11 +3,9 @@
 import { supabase } from '../lib/supabaseAdmin'
 
 // =====================================================
-// 🔥 إرسال رسالة (PRODUCTION SAFE)
+// إرسال رسالة
 // =====================================================
 export async function sendMessage(senderId, receiverId, messageText) {
-  const supabase = createClient()
-
   const s = Number(senderId)
   const r = Number(receiverId)
 
@@ -19,7 +17,7 @@ export async function sendMessage(senderId, receiverId, messageText) {
     return { success: false, error: "لا يمكن إرسال رسالة لنفسك" }
   }
 
-  // تأكد أن الطلاب موجودين
+  // تحقق من وجود الطلاب
   const { data: students, error: studentError } = await supabase
     .from("students")
     .select("student_id")
@@ -51,11 +49,9 @@ export async function sendMessage(senderId, receiverId, messageText) {
 }
 
 // =====================================================
-// 🔥 جلب المحادثات (Chat List)
+// جلب المحادثات
 // =====================================================
 export async function getChatList(studentId) {
-  const supabase = createClient()
-
   const id = Number(studentId)
 
   if (!Number.isInteger(id)) {
@@ -110,11 +106,9 @@ export async function getChatList(studentId) {
 }
 
 // =====================================================
-// 🔥 جلب الرسائل بين طالبين
+// جلب الرسائل
 // =====================================================
 export async function getMessagesBetweenStudents(studentId, otherId) {
-  const supabase = createClient()
-
   const s = Number(studentId)
   const o = Number(otherId)
 
@@ -134,7 +128,6 @@ export async function getMessagesBetweenStudents(studentId, otherId) {
     return { success: false, error: error.message }
   }
 
-  // mark as read
   await supabase
     .from("chat_messages")
     .update({ read_at: new Date().toISOString() })
@@ -146,11 +139,9 @@ export async function getMessagesBetweenStudents(studentId, otherId) {
 }
 
 // =====================================================
-// 🔥 عدد الرسائل غير المقروءة
+// عدد الرسائل غير المقروءة
 // =====================================================
 export async function getUnreadCount(studentId) {
-  const supabase = createClient()
-
   const id = Number(studentId)
 
   if (!Number.isInteger(id)) {
@@ -171,11 +162,9 @@ export async function getUnreadCount(studentId) {
 }
 
 // =====================================================
-// 🔥 جلب الطلاب للنقاش
+// الطلاب
 // =====================================================
 export async function getActiveStudentsForChat(currentStudentId) {
-  const supabase = createClient()
-
   const id = Number(currentStudentId)
 
   if (!Number.isInteger(id)) {
@@ -201,11 +190,9 @@ export async function getActiveStudentsForChat(currentStudentId) {
 }
 
 // =====================================================
-// 🔥 حذف رسالة (صلاحية المرسل فقط)
+// حذف رسالة
 // =====================================================
 export async function deleteMessage(messageId, senderId) {
-  const supabase = createClient()
-
   const msgId = Number(messageId)
   const sId = Number(senderId)
 
