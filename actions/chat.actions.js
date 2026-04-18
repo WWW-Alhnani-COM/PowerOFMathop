@@ -2,6 +2,7 @@
 
 import { supabaseAdmin } from '../lib/supabaseAdmin'
 import { createClient } from '../lib/supabaseServer'
+import { cookies } from 'next/headers'
 
 // =====================================================
 // إرسال رسالة
@@ -186,8 +187,8 @@ export async function getUnreadCount(studentId) {
 // الطلاب النشطين
 // =====================================================
 export async function getActiveStudentsForChat(currentStudentId) {
-  const supabase = createClient()
-
+const supabase = supabaseAdmin
+  
   const id = Number(currentStudentId)
 
   if (!Number.isInteger(id)) {
@@ -201,21 +202,22 @@ export async function getActiveStudentsForChat(currentStudentId) {
     student_id,
     student_name,
     branch_id,
-   branch:branches (
+branch:branches!students_branch_id_fkey (
   branch_name
 )
   `)
   .eq('status', 'active')
   .neq('student_id', id)
   .order('student_name', { ascending: true })
-  console.log("📦 STUDENTS DATA:", data)
-console.log("❌ STUDENTS ERROR:", error)
+
 
     // 🔴 طباعة الخطأ الحقيقي
     if (error) {
       console.log("❌ SUPABASE ERROR (students):", error)
       return { success: false, error: error.message }
     }
+      console.log("📦 STUDENTS DATA:", data)
+console.log("❌ STUDENTS ERROR:", error)
 
     // 🔵 طباعة البيانات
     console.log("✅ STUDENTS LOADED:", data)
