@@ -23,9 +23,9 @@ export async function sendMessage(senderId, receiverId, messageText) {
     return { success: false, error: "لا يمكن إرسال رسالة لنفسك" }
   }
 
-  // ✅ تحقق الكوكي
-  const cookieStudentId = cookies().get('student_id')?.value
-
+// ✅ تحقق الكوكي
+const cookieStore = await cookies()
+const cookieStudentId = cookieStore.get('student_id')?.value
   if (s !== Number(cookieStudentId)) {
     console.log("❌ UNAUTHORIZED:", { s, cookieStudentId })
     return { success: false, error: "غير مصرح" }
