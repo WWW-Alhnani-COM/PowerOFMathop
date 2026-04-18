@@ -1,7 +1,6 @@
 'use server'
 
 import { supabaseAdmin } from '../lib/supabaseAdmin'
-import { cookies } from 'next/headers'
 // =====================================================
 // إرسال رسالة
 // =====================================================
@@ -11,16 +10,7 @@ export async function sendMessage(senderId, receiverId, messageText) {
   const s = Number(senderId)
   const r = Number(receiverId)
 
-  // 🔴 جلب cookie student_id
-  const cookieStore = cookies()
-  const cookieStudentId = Number(cookieStore.get('student_id')?.value)
-
-  console.log("🔥 sendMessage CALLED", { s, r, messageText, cookieStudentId })
-
-  // 🔐 تحقق الهوية
-  if (!cookieStudentId || s !== cookieStudentId) {
-    return { success: false, error: "غير مصرح" }
-  }
+  console.log("🔥 sendMessage CALLED", { s, r, messageText })
 
   if (!messageText?.trim() || !Number.isInteger(s) || !Number.isInteger(r)) {
     return { success: false, error: "بيانات غير صالحة" }
