@@ -11,6 +11,8 @@ export async function sendMessage(senderId, receiverId, messageText) {
   const s = Number(senderId)
   const r = Number(receiverId)
 
+  console.log("🔥 sendMessage CALLED", { s, r, messageText })
+
   if (!messageText?.trim() || !Number.isInteger(s) || !Number.isInteger(r)) {
     return { success: false, error: "بيانات غير صالحة" }
   }
@@ -24,13 +26,7 @@ export async function sendMessage(senderId, receiverId, messageText) {
     .select('student_id')
     .in('student_id', [s, r])
 
-  if (studentsError) {
-    return { success: false, error: studentsError.message }
-  }
-
-  if (!students || students.length !== 2) {
-    return { success: false, error: "أحد الطلاب غير موجود" }
-  }
+  console.log("طلاب:", students, studentsError)
 
   const { data, error } = await supabase
     .from('chat_messages')
@@ -38,13 +34,11 @@ export async function sendMessage(senderId, receiverId, messageText) {
       sender_id: s,
       receiver_id: r,
       message_text: messageText.trim(),
-      message_type: 'text',
-      is_approved: true,
-      is_flagged: false,
-      read_at: null,
     })
     .select()
-    .single()
+
+  console.log("INSERT RESULT:", data)
+  console.log("INSERT ERROR:", error)
 
   if (error) {
     return { success: false, error: error.message }
@@ -52,7 +46,6 @@ export async function sendMessage(senderId, receiverId, messageText) {
 
   return { success: true, data }
 }
-
 // =====================================================
 // جلب الرسائل بين طالبين
 // =====================================================
