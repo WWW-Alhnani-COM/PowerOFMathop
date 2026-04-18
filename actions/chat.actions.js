@@ -168,8 +168,7 @@ export async function getUnreadCount(studentId) {
 
 // =====================================================
 // الطلاب النشطين
-// =====================================================
-export async function getActiveStudentsForChat(currentStudentId) {
+// =====================================================export async function getActiveStudentsForChat(currentStudentId) {
   const supabase = createClient()
 
   const id = Number(currentStudentId)
@@ -178,22 +177,39 @@ export async function getActiveStudentsForChat(currentStudentId) {
     return { success: false, error: "معرف غير صالح" }
   }
 
-  const { data, error } = await supabase
-    .from('students')
-    .select(`
-      student_id,
-      student_name,
-      branch:branches(branch_name)
-    `)
-    .eq('status', 'active')
-    .neq('student_id', id)
-    .order('student_name', { ascending: true })
+  try {
+    const { data, error } = await supabase
+      .from('students')
+      .select(`
+        student_id,
+        student_name,
+        branch:branches!students_branch_id_fkey(
+          branch_name
+        )
+      `)
+      .eq('status', 'active')
+      .neq('student_id', id)
+      .order('student_name', { ascending: true })
 
-  if (error) {
-    return { success: false, error: error.message }
+    // 🔴 طباعة الخطأ الحقيقي
+    if (error) {
+      console.log("❌ SUPABASE ERROR (students):", error)
+      return { success: false, error: error.message }
+    }
+
+    // 🔵 طباعة البيانات
+    console.log("✅ STUDENTS LOADED:", data)
+
+    return { success: true, data }
+
+  } catch (err) {
+    console.log("❌ UNEXPECTED ERROR:", err)
+
+    return {
+      success: false,
+      error: err?.message || "خطأ غير متوقع"
+    }
   }
-
-  return { success: true, data }
 }
 
 // =====================================================
