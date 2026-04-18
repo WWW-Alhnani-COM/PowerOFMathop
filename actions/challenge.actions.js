@@ -1,31 +1,27 @@
-// src/actions/challenge.actions.js - Supabase Version (FULL + FIXED)
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '../lib/supabaseServer'
 import { getSessionStudentId, validateSession } from './auth.actions'
 import { v4 as uuidv4 } from 'uuid'
 
-// ***************************************************************
-// Supabase Client
-// ***************************************************************
+// =====================================================
+// Helper Supabase (SSR آمن)
+// =====================================================
+function getSupabase() {
+  return createClient()
+}
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-)
-
-// ***************************************************************
+// =====================================================
 // الثوابت
-// ***************************************************************
-
-const CHALLENGE_TYPES = {
+// =====================================================
+export const CHALLENGE_TYPES = {
   QUICK: 'quick',
   FULL_SHEET: 'full_sheet',
   RULE_BASED: 'rule_based',
   CUSTOM: 'custom'
 }
 
-const CHALLENGE_STATUS = {
+export const CHALLENGE_STATUS = {
   PENDING: 'pending',
   ACCEPTED: 'accepted',
   IN_PROGRESS: 'in_progress',
@@ -35,76 +31,62 @@ const CHALLENGE_STATUS = {
   CANCELLED: 'cancelled'
 }
 
-// ***************************************************************
-// Helper Functions (مضافة بشكل صحيح)
-// ***************************************************************
+// =====================================================
+// Helper: حساب الدقة
+// =====================================================
+async function calculateAccuracy(resultId) {
+  const supabase = getSupabase()
 
-async function calculateAccuracy(result_id) {
-  try {
-    const { data, error } = await supabase
-      .from('answer_detail')
-      .select('is_correct')
-      .eq('result_id', result_id)
+  const { data, error } = await supabase
+    .from('answer_detail')
+    .select('is_correct')
+    .eq('result_id', resultId)
 
-    if (error) throw error
-    if (!data || data.length === 0) return 0
+  if (error || !data?.length) return 0
 
-    const correct = data.filter(a => a.is_correct === true).length
-    const total = data.length
-
-    return (correct / total) * 100
-  } catch (error) {
-    console.error('calculateAccuracy error:', error)
-    return 0
-  }
+  const correct = data.filter(r => r.is_correct === true).length
+  return (correct / data.length) * 100
 }
 
-async function calculateBestStreak(student_id, currentWin) {
-  try {
-    const { data, error } = await supabase
-      .from('students')
-      .select('current_streak, best_streak')
-      .eq('student_id', student_id)
-      .single()
+// =====================================================
+// Helper: streak
+// =====================================================
+async function calculateBestStreak(studentId, isWin) {
+  const supabase = getSupabase()
 
-    if (error || !data) return 0
+  const { data } = await supabase
+    .from('students')
+    .select('current_streak, best_streak')
+    .eq('student_id', studentId)
+    .single()
 
-    if (currentWin) {
-      const newStreak = (data.current_streak || 0) + 1
-      return Math.max(data.best_streak || 0, newStreak)
-    }
+  if (!data) return 0
 
-    return data.best_streak || 0
-  } catch (error) {
-    console.error('calculateBestStreak error:', error)
-    return 0
-  }
+  if (!isWin) return data.best_streak || 0
+
+  const newStreak = (data.current_streak || 0) + 1
+  return Math.max(data.best_streak || 0, newStreak)
 }
 
-// ***************************************************************
-// Helper
-// ***************************************************************
-
-function toNumber(value, fallback = 0) {
-  return value !== null && value !== undefined ? Number(value) : fallback
-}
-
-// ***************************************************************
+// =====================================================
 // 1. جلب تحديات الطالب
-// ***************************************************************
-
+// =====================================================
 export async function getStudentChallenges(filter = 'all') {
   try {
+    const supabase = getSupabase()
     const studentId = await getSessionStudentId()
-    if (!studentId) return { success: false, error: 'يجب تسجيل الدخول' }
+
+    if (!studentId) {
+      return { success: false, error: 'يجب تسجيل الدخول' }
+    }
 
     let query = supabase
       .from('challenge')
       .select(`
         *,
-        challenger:students!challenge_challenger_id_fkey(*),
-        challenged:students!challenge_challenged_id_fkey(*),
-        winner:students!challenge_winner_id_fkey(*),
+        challenger:students!challenger_id(*),
+        challenged:students!challenged_id(*),
+        winner:students!winner_id(*),
         sheet:sheet(*)
       `)
       .or(`challenger_id.eq.${studentId},challenged_id.eq.${studentId}`)
@@ -116,16 +98,19 @@ export async function getStudentChallenges(filter = 'all') {
     }
 
     const { data, error } = await query
+
     if (error) throw error
 
     const processed = (data || []).map(c => ({
       ...c,
-      sheet: c.sheet ? {
-        ...c.sheet,
-        difficulty_level: toNumber(c.sheet.difficulty_level),
-        required_score: toNumber(c.sheet.required_score),
-        time_limit: toNumber(c.sheet.time_limit)
-      } : null
+      sheet: c.sheet
+        ? {
+            ...c.sheet,
+            difficulty_level: Number(c.sheet.difficulty_level || 0),
+            required_score: Number(c.sheet.required_score || 0),
+            time_limit: Number(c.sheet.time_limit || 0)
+          }
+        : null
     }))
 
     const completed = processed.filter(c => c.status === 'completed').length
@@ -148,13 +133,14 @@ export async function getStudentChallenges(filter = 'all') {
   }
 }
 
-// ***************************************************************
+// =====================================================
 // 2. إنشاء تحدي
-// ***************************************************************
-
+// =====================================================
 export async function createChallenge(params) {
   try {
+    const supabase = getSupabase()
     const session = await validateSession()
+
     if (!session.success) return session
 
     const challenger_id = session.data.student_id
@@ -165,7 +151,9 @@ export async function createChallenge(params) {
       .eq('sheet_id', params.sheet_id)
       .single()
 
-    if (!sheet) return { success: false, error: 'الورقة غير موجودة' }
+    if (!sheet) {
+      return { success: false, error: 'الورقة غير موجودة' }
+    }
 
     if (session.data.current_level_id !== sheet.level_id) {
       return { success: false, error: 'يجب أن تكون في نفس المستوى' }
@@ -191,10 +179,10 @@ export async function createChallenge(params) {
       .insert({
         challenge_code: uuidv4().slice(0, 8).toUpperCase(),
         challenger_id,
-        challenged_id: params.challenged_id,
+        challenged_id: params.challenged_id || null,
         sheet_id: params.sheet_id,
-        challenge_type: params.challenge_type || 'full_sheet',
-        status: 'pending',
+        challenge_type: params.challenge_type || CHALLENGE_TYPES.FULL_SHEET,
+        status: CHALLENGE_STATUS.PENDING,
         time_limit: (params.time_limit || 10) * 60,
         is_public: params.is_public || false
       })
@@ -209,11 +197,11 @@ export async function createChallenge(params) {
   }
 }
 
-// ***************************************************************
-// 3 - 9 باقي الدوال (مختصرة بدون تغيير المنطق الأساسي)
-// ***************************************************************
-
+// =====================================================
+// 3. التحديات العامة
+// =====================================================
 export async function getPublicChallenges() {
+  const supabase = getSupabase()
   const session = await validateSession()
   if (!session.success) return session
 
@@ -221,12 +209,18 @@ export async function getPublicChallenges() {
     .from('challenge')
     .select(`*, sheet:sheet(*)`)
     .eq('is_public', true)
-    .eq('status', 'pending')
+    .eq('status', CHALLENGE_STATUS.PENDING)
 
-  return error ? { success: false, error: error.message } : { success: true, data }
+  return error
+    ? { success: false, error: error.message }
+    : { success: true, data }
 }
 
+// =====================================================
+// 4. تفاصيل التحدي
+// =====================================================
 export async function getChallengeDetails(challenge_id) {
+  const supabase = getSupabase()
   const session = await validateSession()
   if (!session.success) return session
 
@@ -236,43 +230,68 @@ export async function getChallengeDetails(challenge_id) {
     .eq('challenge_id', challenge_id)
     .single()
 
-  return error ? { success: false, error: error.message } : { success: true, data }
+  return error
+    ? { success: false, error: error.message }
+    : { success: true, data }
 }
 
+// =====================================================
+// 5. الرد على التحدي
+// =====================================================
 export async function respondToChallenge(challenge_id, response) {
+  const supabase = getSupabase()
   const session = await validateSession()
   if (!session.success) return session
 
-  const status = response === 'accept' ? 'accepted' : 'rejected'
+  const status =
+    response === 'accept'
+      ? CHALLENGE_STATUS.ACCEPTED
+      : CHALLENGE_STATUS.REJECTED
 
   const { data, error } = await supabase
     .from('challenge')
     .update({
       status,
-      start_time: response === 'accept' ? new Date(Date.now() + 5000) : null,
+      start_time:
+        response === 'accept' ? new Date(Date.now() + 5000) : null,
       end_time: response === 'reject' ? new Date() : null
     })
     .eq('challenge_id', challenge_id)
     .select()
     .single()
 
-  return error ? { success: false, error: error.message } : { success: true, data }
+  return error
+    ? { success: false, error: error.message }
+    : { success: true, data }
 }
 
+// =====================================================
+// 6. إلغاء التحدي
+// =====================================================
 export async function cancelChallenge(challenge_id) {
+  const supabase = getSupabase()
   const session = await validateSession()
   if (!session.success) return session
 
   const { data, error } = await supabase
     .from('challenge')
-    .update({ status: 'cancelled', end_time: new Date() })
+    .update({
+      status: CHALLENGE_STATUS.CANCELLED,
+      end_time: new Date()
+    })
     .eq('challenge_id', challenge_id)
     .select()
 
-  return error ? { success: false, error: error.message } : { success: true, data }
+  return error
+    ? { success: false, error: error.message }
+    : { success: true, data }
 }
 
+// =====================================================
+// 7. التحديات النشطة
+// =====================================================
 export async function getActiveChallenges() {
+  const supabase = getSupabase()
   const session = await validateSession()
   if (!session.success) return session
 
@@ -282,12 +301,22 @@ export async function getActiveChallenges() {
     .from('challenge')
     .select(`*, sheet:sheet(*)`)
     .or(`challenger_id.eq.${id},challenged_id.eq.${id}`)
-    .in('status', ['pending', 'accepted', 'in_progress'])
+    .in('status', [
+      CHALLENGE_STATUS.PENDING,
+      CHALLENGE_STATUS.ACCEPTED,
+      CHALLENGE_STATUS.IN_PROGRESS
+    ])
 
-  return error ? { success: false, error: error.message } : { success: true, data }
+  return error
+    ? { success: false, error: error.message }
+    : { success: true, data }
 }
 
+// =====================================================
+// 8. أوراق التحدي
+// =====================================================
 export async function getAvailableSheetsForChallenge() {
+  const supabase = getSupabase()
   const session = await validateSession()
   if (!session.success) return session
 
@@ -297,47 +326,59 @@ export async function getAvailableSheetsForChallenge() {
     .eq('level_id', session.data.current_level_id)
     .eq('is_active', true)
 
-  return error ? { success: false, error: error.message } : { success: true, data }
+  return error
+    ? { success: false, error: error.message }
+    : { success: true, data }
 }
 
+// =====================================================
+// 9. بدء التحدي
+// =====================================================
 export async function startChallenge(challenge_id) {
+  const supabase = getSupabase()
   const session = await validateSession()
   if (!session.success) return session
 
   const { data, error } = await supabase
     .from('challenge')
-    .update({ status: 'in_progress', start_time: new Date() })
+    .update({
+      status: CHALLENGE_STATUS.IN_PROGRESS,
+      start_time: new Date()
+    })
     .eq('challenge_id', challenge_id)
     .select()
 
-  return error ? { success: false, error: error.message } : { success: true, data }
+  return error
+    ? { success: false, error: error.message }
+    : { success: true, data }
 }
 
-export async function searchStudentsForChallenge(query, excludeCurrent = true) {
+// =====================================================
+// 10. البحث عن الطلاب
+// =====================================================
+export async function searchStudentsForChallenge(query) {
+  const supabase = getSupabase()
   const session = await validateSession()
   if (!session.success) return session
 
-  let q = supabase
+  const { data, error } = await supabase
     .from('students')
     .select(`*, levels(*)`)
     .ilike('student_name', `%${query}%`)
+    .neq('student_id', session.data.student_id)
     .limit(10)
 
-  if (excludeCurrent) {
-    q = q.neq('student_id', session.data.student_id)
-  }
-
-  const { data, error } = await q
-
-  return error ? { success: false, error: error.message } : { success: true, data }
+  return error
+    ? { success: false, error: error.message }
+    : { success: true, data }
 }
 
-// ***************************************************************
-// 10. submitChallengeAnswer (مع الدالة المساعدة)
-// ***************************************************************
-
+// =====================================================
+// 11. submit answer
+// =====================================================
 export async function submitChallengeAnswer(payload) {
   try {
+    const supabase = getSupabase()
     const session = await validateSession()
     if (!session.success) return session
 
@@ -359,9 +400,14 @@ export async function submitChallengeAnswer(payload) {
     const { error } = await supabase
       .from('sheet_result')
       .update({
-        total_correct: payload.is_correct ? result.total_correct + 1 : result.total_correct,
-        total_wrong: !payload.is_correct ? result.total_wrong + 1 : result.total_wrong,
-        total_time_spent: result.total_time_spent + payload.time_spent,
+        total_correct: payload.is_correct
+          ? result.total_correct + 1
+          : result.total_correct,
+        total_wrong: !payload.is_correct
+          ? result.total_wrong + 1
+          : result.total_wrong,
+        total_time_spent:
+          result.total_time_spent + payload.time_spent,
         accuracy
       })
       .eq('result_id', result.sheet_result_id)
@@ -374,12 +420,12 @@ export async function submitChallengeAnswer(payload) {
   }
 }
 
-// ***************************************************************
-// 11. completeChallenge
-// ***************************************************************
-
+// =====================================================
+// 12. إكمال التحدي
+// =====================================================
 export async function completeChallenge(challenge_id, results) {
   try {
+    const supabase = getSupabase()
     const session = await validateSession()
     if (!session.success) return session
 
@@ -387,10 +433,16 @@ export async function completeChallenge(challenge_id, results) {
 
     await supabase
       .from('challenge')
-      .update({ status: 'completed', end_time: new Date() })
+      .update({
+        status: CHALLENGE_STATUS.COMPLETED,
+        end_time: new Date()
+      })
       .eq('challenge_id', challenge_id)
 
-    const bestStreak = await calculateBestStreak(student_id, results.score > 50)
+    const bestStreak = await calculateBestStreak(
+      student_id,
+      results.score > 50
+    )
 
     await supabase
       .from('students')
@@ -407,22 +459,8 @@ export async function completeChallenge(challenge_id, results) {
   }
 }
 
-// ***************************************************************
-// الثوابت
-// ***************************************************************
-
-export async function getChallengeTypes() {
-  return CHALLENGE_TYPES
-}
-
-export async function getChallengeStatus() {
-  return CHALLENGE_STATUS
-}
-
-export async function getCHALLENGE_TYPES() {
-  return CHALLENGE_TYPES
-}
-
-export async function getCHALLENGE_STATUS() {
-  return CHALLENGE_STATUS
-}
+// =====================================================
+// الثوابت export
+// =====================================================
+export const getChallengeTypes = () => CHALLENGE_TYPES
+export const getChallengeStatus = () => CHALLENGE_STATUS
