@@ -2,7 +2,10 @@
 
 import { createClient } from '../lib/supabaseServer'
 
-function supabase() {
+// =====================================================
+// Helper (موحد وصحيح)
+// =====================================================
+function getSupabase() {
   return createClient()
 }
 
@@ -10,18 +13,18 @@ function supabase() {
 // 1. إحصائيات النظام العامة
 // =====================================================
 export async function getSystemStats() {
-  const supabase = supabaseServer()
+  const supabase = getSupabase()
 
   try {
     const [
-      totalStudents,
-      totalBranches,
-      totalLevels,
-      totalRules,
-      totalSheets,
-      totalChallenges,
-      totalMessages,
-      activeStudents
+      { count: totalStudents },
+      { count: totalBranches },
+      { count: totalLevels },
+      { count: totalRules },
+      { count: totalSheets },
+      { count: totalChallenges },
+      { count: totalMessages },
+      { count: activeStudents }
     ] = await Promise.all([
       supabase.from('students').select('*', { count: 'exact', head: true }),
       supabase.from('branches').select('*', { count: 'exact', head: true }),
@@ -33,7 +36,6 @@ export async function getSystemStats() {
       supabase.from('students').select('*', { count: 'exact', head: true }).eq('status', 'active')
     ])
 
-    // last 7 days results
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
@@ -44,37 +46,38 @@ export async function getSystemStats() {
 
     if (error) throw error
 
-    const averageScore =
-      recentResults?.length
-        ? recentResults.reduce((s, r) => s + (r.score || 0), 0) / recentResults.length
-        : 0
+    const total = recentResults?.length || 0
 
-    const averageAccuracy =
-      recentResults?.length
-        ? recentResults.reduce((s, r) => s + (r.accuracy || 0), 0) / recentResults.length
-        : 0
+    const averageScore = total
+      ? recentResults.reduce((s, r) => s + (r.score || 0), 0) / total
+      : 0
 
-    const totalTime =
-      recentResults?.reduce((s, r) => s + (r.total_time_spent || 0), 0) || 0
+    const averageAccuracy = total
+      ? recentResults.reduce((s, r) => s + (r.accuracy || 0), 0) / total
+      : 0
+
+    const totalTime = recentResults
+      ? recentResults.reduce((s, r) => s + (r.total_time_spent || 0), 0)
+      : 0
 
     return {
       success: true,
       data: {
         overview: {
-          totalStudents: totalStudents.count || 0,
-          totalBranches: totalBranches.count || 0,
-          totalLevels: totalLevels.count || 0,
-          totalRules: totalRules.count || 0,
-          totalSheets: totalSheets.count || 0,
-          totalChallenges: totalChallenges.count || 0,
-          totalMessages: totalMessages.count || 0,
-          activeStudents: activeStudents.count || 0
+          totalStudents: totalStudents || 0,
+          totalBranches: totalBranches || 0,
+          totalLevels: totalLevels || 0,
+          totalRules: totalRules || 0,
+          totalSheets: totalSheets || 0,
+          totalChallenges: totalChallenges || 0,
+          totalMessages: totalMessages || 0,
+          activeStudents: activeStudents || 0
         },
         performance: {
           averageScore: Math.round(averageScore),
           averageAccuracy: Math.round(averageAccuracy),
           totalPracticeTime: totalTime,
-          recentActivities: recentResults?.length || 0
+          recentActivities: total
         }
       }
     }
@@ -87,13 +90,14 @@ export async function getSystemStats() {
 // 2. إحصائيات الطالب
 // =====================================================
 export async function getStudentDashboardStats(studentId) {
-  const supabase = supabaseServer()
-  const id = parseInt(studentId)
+  const supabase = getSupabase()
+  const id = Number(studentId)
 
-  if (isNaN(id)) return { success: false, error: 'invalid id' }
+  if (!id || isNaN(id)) {
+    return { success: false, error: 'invalid id' }
+  }
 
   try {
-    // student
     const { data: student } = await supabase
       .from('students')
       .select(`
@@ -104,9 +108,10 @@ export async function getStudentDashboardStats(studentId) {
       .eq('student_id', id)
       .single()
 
-    if (!student) return { success: false, error: 'not found' }
+    if (!student) {
+      return { success: false, error: 'not found' }
+    }
 
-    // results
     const { data: sheetResults } = await supabase
       .from('sheet_results')
       .select(`
@@ -121,7 +126,6 @@ export async function getStudentDashboardStats(studentId) {
       .order('created_at', { ascending: false })
       .limit(10)
 
-    // challenges
     const { data: challenges } = await supabase
       .from('challenges')
       .select(`
@@ -135,19 +139,18 @@ export async function getStudentDashboardStats(studentId) {
       .order('created_at', { ascending: false })
       .limit(5)
 
-    // unread messages
     const { count: unreadMessages } = await supabase
       .from('chat_messages')
       .select('*', { count: 'exact', head: true })
       .eq('receiver_id', id)
       .is('read_at', null)
 
-    const totalAttempts = await supabase
+    const { count: totalAttempts } = await supabase
       .from('sheet_results')
       .select('*', { count: 'exact', head: true })
       .eq('student_id', id)
 
-    const completedAttempts = await supabase
+    const { count: completedAttempts } = await supabase
       .from('sheet_results')
       .select('*', { count: 'exact', head: true })
       .eq('student_id', id)
@@ -158,20 +161,21 @@ export async function getStudentDashboardStats(studentId) {
       .select('total_time_spent')
       .eq('student_id', id)
 
-    const totalTimeSpent =
-      timeAgg?.reduce((s, r) => s + (r.total_time_spent || 0), 0) || 0
+    const totalTimeSpent = timeAgg?.reduce(
+      (s, r) => s + (r.total_time_spent || 0),
+      0
+    ) || 0
 
     return {
       success: true,
       data: {
         student,
         stats: {
-          totalAttempts: totalAttempts.count || 0,
-          completedAttempts: completedAttempts.count || 0,
-          completionRate:
-            totalAttempts.count > 0
-              ? Math.round((completedAttempts.count / totalAttempts.count) * 100)
-              : 0,
+          totalAttempts: totalAttempts || 0,
+          completedAttempts: completedAttempts || 0,
+          completionRate: totalAttempts
+            ? Math.round((completedAttempts / totalAttempts) * 100)
+            : 0,
           totalTimeSpent,
           currentStreak: student.current_streak,
           bestStreak: student.best_streak,
@@ -188,13 +192,15 @@ export async function getStudentDashboardStats(studentId) {
 }
 
 // =====================================================
-// باقي الدوال (مختصرة للحجم)
+// 3. الأنشطة الحديثة
 // =====================================================
-
-// الأنشطة الحديثة
 export async function getRecentActivities(studentId) {
-  const supabase = supabaseServer()
-  const id = parseInt(studentId)
+  const supabase = getSupabase()
+  const id = Number(studentId)
+
+  if (!id || isNaN(id)) {
+    return { success: false, error: 'invalid id' }
+  }
 
   try {
     const { data: messages } = await supabase
@@ -229,64 +235,5 @@ export async function getRecentActivities(studentId) {
     return { success: true, data: activities }
   } catch (e) {
     return { success: false, error: e.message }
-  }
-}
-
-// التقدم الشهري (مختصر)
-export async function getMonthlyProgress(studentId) {
-  const supabase = supabaseServer()
-  const id = parseInt(studentId)
-
-  const oneMonthAgo = new Date()
-  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
-
-  const { data } = await supabase
-    .from('sheet_results')
-    .select('*')
-    .eq('student_id', id)
-    .gte('created_at', oneMonthAgo.toISOString())
-
-  return {
-    success: true,
-    data: data || []
-  }
-}
-
-// الأهداف
-export async function getStudentGoals(studentId) {
-  const supabase = supabaseServer()
-  const id = parseInt(studentId)
-
-  const { data: student } = await supabase
-    .from('students')
-    .select('*')
-    .eq('student_id', id)
-    .single()
-
-  return {
-    success: true,
-    data: {
-      scoreGoal: 5000,
-      current: student?.total_score || 0,
-      streak: student?.current_streak || 0
-    }
-  }
-}
-
-// اقتراحات التعلم
-export async function getLearningSuggestions(studentId) {
-  const supabase = supabaseServer()
-  const id = parseInt(studentId)
-
-  const { data: weakRules } = await supabase
-    .from('performance_analytics')
-    .select('*, rule:rules(rule_name)')
-    .eq('student_id', id)
-    .gt('weakness_score', 50)
-    .order('weakness_score', { ascending: false })
-
-  return {
-    success: true,
-    data: weakRules || []
   }
 }
