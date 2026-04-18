@@ -80,8 +80,10 @@ const ChatListPage = () => {
         setError(result.error || 'فشل جلب قائمة الطلاب.');
       }
     } catch (err) {
-      setError('فشل جلب قائمة الطلاب.');
-    } finally {
+  console.log("STUDENTS ERROR:", err)
+  setError(err.message || 'فشل جلب قائمة الطلاب.')
+}
+    finally {
       setStudentsLoading(false);
     }
   };
