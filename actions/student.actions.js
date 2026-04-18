@@ -1,16 +1,10 @@
-
 'use server';
 
-import { createClient } from '@utils/supabase/server';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabaseServer';
 
 // ==========================
 // Helper
 // ==========================
-async function supabase() {
-  return createClient(cookies());
-}
-
 function toPlain(data) {
   return data == null ? data : JSON.parse(JSON.stringify(data));
 }
@@ -29,9 +23,8 @@ export async function registerStudent(studentName, branchId = null) {
   const name = studentName.trim();
 
   try {
-    const sb = await supabase();
+    const sb = createClient();
 
-    // التحقق من التكرار
     const { data: existing } = await sb
       .from('students')
       .select('student_id')
@@ -73,12 +66,13 @@ export async function registerStudent(studentName, branchId = null) {
 // ============================================================
 export async function getStudentById(studentId) {
   const id = Number(studentId);
+
   if (isNaN(id)) {
     return { success: false, error: 'معرف طالب غير صالح.' };
   }
 
   try {
-    const sb = await supabase();
+    const sb = createClient();
 
     const { data, error } = await sb
       .from('students')
@@ -127,7 +121,7 @@ export async function updateStudentName(studentId, newName) {
   const name = newName.trim();
 
   try {
-    const sb = await supabase();
+    const sb = createClient();
 
     const { data: current } = await sb
       .from('students')
@@ -168,7 +162,7 @@ export async function updateStudentName(studentId, newName) {
 }
 
 // ============================================================
-// 4. تحديث فرع الطالب
+// 4. تحديث الفرع
 // ============================================================
 export async function updateStudentBranch(studentId, branchId) {
   const id = Number(studentId);
@@ -179,7 +173,7 @@ export async function updateStudentBranch(studentId, branchId) {
   }
 
   try {
-    const sb = await supabase();
+    const sb = createClient();
 
     if (branch) {
       const { data: branchExists } = await sb
@@ -227,7 +221,7 @@ export async function updateStudentLevel(studentId, levelId) {
   }
 
   try {
-    const sb = await supabase();
+    const sb = createClient();
 
     const { data: levelData } = await sb
       .from('levels')
@@ -272,7 +266,7 @@ export async function getStudentStats(studentId) {
   }
 
   try {
-    const sb = await supabase();
+    const sb = createClient();
 
     const { data, error } = await sb
       .from('students')
