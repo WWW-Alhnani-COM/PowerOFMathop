@@ -462,5 +462,5 @@ export async function completeChallenge(challenge_id, results) {
 // =====================================================
 // الثوابت export
 // =====================================================
-export const getChallengeTypes = () => CHALLENGE_TYPES
-export const getChallengeStatus = () => CHALLENGE_STATUS
+export const getChallengeTypes = async () => CHALLENGE_TYPES
+export const getChallengeStatus = async () => CHALLENGE_STATUS
