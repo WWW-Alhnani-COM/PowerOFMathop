@@ -1,17 +1,26 @@
 'use server'
 
-import { createClient } from '../lib/supabaseServer'
-
+import { supabaseAdmin } from '../lib/supabaseAdmin'
+import { cookies } from 'next/headers'
 // =====================================================
 // إرسال رسالة
 // =====================================================
 export async function sendMessage(senderId, receiverId, messageText) {
-  const supabase = createClient()
+  const supabase = supabaseAdmin
 
   const s = Number(senderId)
   const r = Number(receiverId)
 
-  console.log("🔥 sendMessage CALLED", { s, r, messageText })
+  // 🔴 جلب cookie student_id
+  const cookieStore = cookies()
+  const cookieStudentId = Number(cookieStore.get('student_id')?.value)
+
+  console.log("🔥 sendMessage CALLED", { s, r, messageText, cookieStudentId })
+
+  // 🔐 تحقق الهوية
+  if (!cookieStudentId || s !== cookieStudentId) {
+    return { success: false, error: "غير مصرح" }
+  }
 
   if (!messageText?.trim() || !Number.isInteger(s) || !Number.isInteger(r)) {
     return { success: false, error: "بيانات غير صالحة" }
@@ -26,7 +35,9 @@ export async function sendMessage(senderId, receiverId, messageText) {
     .select('student_id')
     .in('student_id', [s, r])
 
-  console.log("طلاب:", students, studentsError)
+  if (studentsError) {
+    return { success: false, error: studentsError.message }
+  }
 
   const { data, error } = await supabase
     .from('chat_messages')
@@ -46,6 +57,8 @@ export async function sendMessage(senderId, receiverId, messageText) {
 
   return { success: true, data }
 }
+
+
 // =====================================================
 // جلب الرسائل بين طالبين
 // =====================================================
