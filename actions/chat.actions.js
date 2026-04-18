@@ -1,6 +1,8 @@
 'use server'
 
 import { supabaseAdmin } from '../lib/supabaseAdmin'
+import { createClient } from '../lib/supabaseServer'
+
 // =====================================================
 // إرسال رسالة
 // =====================================================
@@ -20,13 +22,27 @@ export async function sendMessage(senderId, receiverId, messageText) {
     return { success: false, error: "لا يمكن إرسال رسالة لنفسك" }
   }
 
+  // ✅ تحقق الكوكي
+  const cookieStudentId = cookies().get('student_id')?.value
+
+  if (s !== Number(cookieStudentId)) {
+    console.log("❌ UNAUTHORIZED:", { s, cookieStudentId })
+    return { success: false, error: "غير مصرح" }
+  }
+
   const { data: students, error: studentsError } = await supabase
     .from('students')
     .select('student_id')
     .in('student_id', [s, r])
 
   if (studentsError) {
+    console.log("❌ STUDENTS ERROR:", studentsError)
     return { success: false, error: studentsError.message }
+  }
+
+  if (!students || students.length !== 2) {
+    console.log("❌ STUDENTS NOT FOUND:", students)
+    return { success: false, error: "أحد الطلاب غير موجود" }
   }
 
   const { data, error } = await supabase
@@ -42,12 +58,12 @@ export async function sendMessage(senderId, receiverId, messageText) {
   console.log("INSERT ERROR:", error)
 
   if (error) {
+    console.log("❌ INSERT ERROR:", error)
     return { success: false, error: error.message }
   }
 
   return { success: true, data }
 }
-
 
 // =====================================================
 // جلب الرسائل بين طالبين
@@ -168,7 +184,8 @@ export async function getUnreadCount(studentId) {
 
 // =====================================================
 // الطلاب النشطين
-// =====================================================export async function getActiveStudentsForChat(currentStudentId) {
+// =====================================================
+export async function getActiveStudentsForChat(currentStudentId) {
   const supabase = createClient()
 
   const id = Number(currentStudentId)
@@ -178,18 +195,21 @@ export async function getUnreadCount(studentId) {
   }
 
   try {
-    const { data, error } = await supabase
-      .from('students')
-      .select(`
-        student_id,
-        student_name,
-        branch:branches!students_branch_id_fkey(
-          branch_name
-        )
-      `)
-      .eq('status', 'active')
-      .neq('student_id', id)
-      .order('student_name', { ascending: true })
+   const { data, error } = await supabase
+  .from('students')
+  .select(`
+    student_id,
+    student_name,
+    branch_id,
+   branch:branches (
+  branch_name
+)
+  `)
+  .eq('status', 'active')
+  .neq('student_id', id)
+  .order('student_name', { ascending: true })
+  console.log("📦 STUDENTS DATA:", data)
+console.log("❌ STUDENTS ERROR:", error)
 
     // 🔴 طباعة الخطأ الحقيقي
     if (error) {
