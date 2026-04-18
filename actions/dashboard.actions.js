@@ -1,13 +1,9 @@
 'use server'
 
-import { createClient } from '@utils/supabase/server'
-import { cookies } from 'next/headers'
+import { createClient } from '../lib/supabaseServer'
 
-// =====================================================
-// Supabase Server Client
-// =====================================================
-function supabaseServer() {
-  return createClient(cookies())
+function supabase() {
+  return createClient()
 }
 
 // =====================================================
