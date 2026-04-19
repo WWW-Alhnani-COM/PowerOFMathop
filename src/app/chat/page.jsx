@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '../../../components/layout/Header';
+import { createClient } from '@supabase/supabase-js'
 import { 
   getChatList, 
   getUnreadCount, 
@@ -24,6 +25,10 @@ const ChatListPage = () => {
   const [availableStudents, setAvailableStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
   // 🔑 جلب هوية المستخدم
   useEffect(() => {
@@ -95,23 +100,46 @@ const ChatListPage = () => {
     }
   }, [currentStudentId, fetchChatData]);
 
-
-  // 👇 هنا تضيفه
 useEffect(() => {
-  const handleFocus = async () => {
-    if (!currentStudentId) return;
+  if (!currentStudentId) return;
 
-    const countResult = await getUnreadCount(currentStudentId);
+  const channel = supabase
+    .channel('chat-realtime')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'chat_messages',
+      },
+      async (payload) => {
+        // تحديث فقط إذا الرسالة تخص المستخدم الحالي
+        const newMsg = payload.new;
 
-    if (countResult.success) {
-      setTotalUnreadCount(countResult.data);
-    }
+        if (
+          newMsg.receiver_id === currentStudentId ||
+          newMsg.sender_id === currentStudentId
+        ) {
+          const listResult = await getChatList(currentStudentId);
+          if (listResult.success) {
+            setChatList(listResult.data);
+          }
+
+          const countResult = await getUnreadCount(currentStudentId);
+          if (countResult.success) {
+            setTotalUnreadCount(countResult.data);
+          }
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
   };
-
-  window.addEventListener('focus', handleFocus);
-
-  return () => window.removeEventListener('focus', handleFocus);
 }, [currentStudentId]);
+
+
 
   // 💡 دالة لتوليد ألوان متدرجة
   const getAvatarColor = (name) => {
