@@ -21,6 +21,10 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+
+
+  
+
   // =========================================
   // جلب المستخدم الحالي من localStorage
   // =========================================
@@ -37,6 +41,27 @@ export default function ChatPage() {
     setCurrentStudentName(name || 'أنا')
   }, [])
 
+
+useEffect(() => {
+  if (!currentStudentId || !otherStudentId) return;
+
+  const markAsRead = async () => {
+    try {
+      await fetch('/api/chat/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: currentStudentId,
+          senderId: Number(otherStudentId),
+        }),
+      });
+    } catch (err) {
+      console.log('markAsRead error:', err);
+    }
+  };
+
+  markAsRead();
+}, [currentStudentId, otherStudentId]);
   // =========================================
   // جلب الطالب الآخر من Supabase
   // =========================================
