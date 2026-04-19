@@ -4,6 +4,21 @@
 import { useState, useTransition, FormEvent, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { Cairo } from 'next/font/google';
+
+
+const cairo = Cairo({ 
+  subsets: ['arabic'],
+  weight: ['400', '700'],
+});
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="ar" dir="rtl">
+      <body className={cairo.className}>{children}</body>
+    </html>
+  );
+}
 
 // 1. الأنواع
 interface Branch {
@@ -104,7 +119,8 @@ export default function LoginFormClient({ branches, loginAction }: LoginFormProp
     const selectedBranch = branches.find(b => b.branch_id.toString() === branchId);
 
     return (
-        <form onSubmit={handleSubmit} className="p-6 lg:p-8">
+<form onSubmit={handleSubmit} className="p-6 lg:p-8 relative"> 
+{/* تأكد أنه لا يوجد هنا كلمة overflow-hidden */}
             {/* العنوان */}
             <div className="text-center mb-8">
                 <div className="inline-flex items-center justify-center w-16 h-16  from-white-500  rounded-full mb-4">
@@ -119,12 +135,14 @@ export default function LoginFormClient({ branches, loginAction }: LoginFormProp
                 priority // ← لتحميل الصورة أولاً
               />
             </div>                </div>
-                <h2 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-2">
-                    تسجيل الدخول
-                </h2>
-                <p className="text-gray-600 text-sm">
-                    أدخل بياناتك للبدء
-                </p>
+                {/* العنوان - تم إضافة font-bold وتغيير الحجم */}
+<h2 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-2 leading-tight">
+    تسجيل الدخول
+</h2>
+<p className="text-gray-600 text-sm font-medium">
+    أدخل بياناتك للبدء في رحلة التميز
+</p>
+
             </div>
 
             {/* رسالة الخطأ */}
@@ -139,9 +157,12 @@ export default function LoginFormClient({ branches, loginAction }: LoginFormProp
 
             {/* حقل اسم الطالب */}
             <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                    اسم الطالب
-                </label>
+                {/* العناوين الجانبية - جعلها font-semibold */}
+<label className="block text-sm font-semibold text-gray-700 mb-3">
+    اسم الطالب
+</label>
+
+                
                 <div className="relative">
                     <input
                         type="text"
@@ -181,24 +202,24 @@ export default function LoginFormClient({ branches, loginAction }: LoginFormProp
 
                     {/* القائمة المنسدلة */}
                     {isDropdownOpen && (
-                        <div className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+    <div className="absolute left-0 right-0 z-[999] mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
                             {/* شريط البحث */}
-                            <div className="p-3 border-b border-gray-100">
-                                <div className="relative">
-                                    <input
-                                        ref={inputRef}
-                                        type="text"
-                                        placeholder="🔍 ابحث عن فرع..."
-                                        className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                        value={searchTerm}
-                                        onChange={handleSearch}
-                                        autoFocus
-                                    />
-                                    <div className="absolute right-3 top-2.5 text-gray-400">
-                                        🔍
-                                    </div>
-                                </div>
-                            </div>
+                            {/* شريط البحث داخل القائمة */}
+<div className="p-3 border-b border-gray-100">
+    <div className="relative">
+        <input
+            ref={inputRef}
+            type="text"
+            placeholder="ابحث عن فرع..."
+            className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 text-right"
+            value={searchTerm}
+            onChange={handleSearch}
+            autoFocus
+        />
+        
+    </div>
+</div>
+
 
                             {/* قائمة الفروع */}
                             <div className="max-h-64 overflow-y-auto">
@@ -239,26 +260,24 @@ export default function LoginFormClient({ branches, loginAction }: LoginFormProp
             </div>
 
             {/* زر الإرسال */}
-            <button
-                type="submit"
-                disabled={isPending || !name || !branchId}
-                className={`w-full py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-3 ${
-                    isPending || !name || !branchId
-                        ? 'bg-gray-300 cursor-not-allowed text-gray-500'
-                        : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-xl hover:scale-105 shadow-lg'
-                }`}
-            >
-                {isPending ? (
-                    <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white" />
-                        <span>جارٍ الدخول...</span>
-                    </>
-                ) : (
-                    <>
-                        <span className="text-xl">ابدأ التدريب الآن</span>
-                    </>
-                )}
-            </button>
+ {/* زر الإرسال - تم تغيير اللون إلى البرتقالي المتدرج */}
+<button
+    type="submit"
+    disabled={isPending || !name || !branchId}
+    className={`w-full py-4 rounded-xl font-bold text-lg tracking-wide transition-all flex items-center justify-center gap-3 ${
+        isPending || !name || !branchId
+            ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+            : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-orange-200 hover:shadow-xl hover:scale-105 shadow-lg'
+    }`}
+>
+    {isPending ? (
+        <span className="font-medium">جارٍ الدخول...</span>
+    ) : (
+        <span className="text-xl">ابدأ التدريب الآن</span>
+    )}
+</button>
+
+
 
             {/* رابط العودة */}
             <div className="mt-6 text-center">
