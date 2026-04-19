@@ -9,7 +9,7 @@ const supabase = createClient(
 )
 
 // ***************************************************************
-// 4. إدارة القواعد واختيارها (Supabase)
+// 1. جلب القواعد حسب المستوى (مطابق level_rules)
 // ***************************************************************
 
 export async function getRulesByLevel(levelId) {
@@ -17,21 +17,32 @@ export async function getRulesByLevel(levelId) {
     const { data, error } = await supabase
       .from('level_rules')
       .select(`
-        rule:rules(rule_id, rule_name, description, icon)
+        order_in_level,
+        rule:rules (
+          rule_id,
+          rule_name,
+          description,
+          icon
+        )
       `)
       .eq('level_id', levelId)
-      .order('order_in_level')
+      .order('order_in_level', { ascending: true })
 
     if (error) throw error
 
     return {
       success: true,
-      data: data.map(r => r.rule)
+      data: data.map(item => item.rule)
     }
-  } catch {
+
+  } catch (error) {
     return { success: false, error: 'فشل في جلب القواعد.' }
   }
 }
+
+// ***************************************************************
+// 2. تفاصيل القاعدة (مطابقة rules)
+// ***************************************************************
 
 export async function getRuleDetails(ruleId) {
   try {
@@ -46,16 +57,21 @@ export async function getRuleDetails(ruleId) {
     }
 
     return { success: true, data }
+
   } catch {
     return { success: false, error: 'فشل في جلب تفاصيل القاعدة.' }
   }
 }
 
+// ***************************************************************
+// 3. أمثلة القاعدة (problem_types - مطابق لقاعدتك)
+// ***************************************************************
+
 export async function getRuleExamples(ruleId) {
   try {
     const { data, error } = await supabase
       .from('problem_types')
-      .select('template, parameters, difficulty_weight')
+      .select('template, parameters, difficulty_weight, expected_time')
       .eq('rule_id', ruleId)
       .eq('is_active', true)
       .limit(3)
@@ -63,50 +79,70 @@ export async function getRuleExamples(ruleId) {
     if (error) throw error
 
     return { success: true, data }
+
   } catch {
     return { success: false, error: 'فشل في جلب الأمثلة.' }
   }
 }
 
+// ***************************************************************
+// 4. الشيتات المتاحة (مطابقة sheets)
+// ***************************************************************
+
 export async function getAvailableSheets(ruleId) {
   try {
     const { data, error } = await supabase
       .from('sheets')
-      .select('sheet_id, sheet_name, total_problems, time_limit, difficulty_level')
+      .select('sheet_id, sheet_name, total_problems, time_limit, required_score, difficulty_level')
       .eq('rule_id', ruleId)
       .eq('is_active', true)
-      .order('difficulty_level')
+      .order('difficulty_level', { ascending: true })
 
     if (error) throw error
 
     return { success: true, data }
+
   } catch {
     return { success: false, error: 'فشل في جلب الشيتات.' }
   }
 }
 
+// ***************************************************************
+// 5. بدء التدريب (sheet_results مطابق 100% لقاعدتك)
+// ***************************************************************
+
 export async function startRulePractice(studentId, ruleId) {
   try {
-    const { data: sheet } = await supabase
+    const supabaseClient = supabase
+
+    // جلب أول شيت متاح حسب القاعدة
+    const { data: sheet, error: sheetError } = await supabaseClient
       .from('sheets')
       .select('*')
       .eq('rule_id', ruleId)
       .eq('is_active', true)
-      .order('difficulty_level')
+      .order('difficulty_level', { ascending: true })
       .limit(1)
       .single()
 
-    if (!sheet) {
-      return { success: false, error: 'لا توجد شيتات.' }
+    if (sheetError || !sheet) {
+      return { success: false, error: 'لا توجد شيتات لهذه القاعدة.' }
     }
 
-    const { data: result, error } = await supabase
+    // إنشاء نتيجة جديدة (مطابقة sheet_results)
+    const { data: result, error } = await supabaseClient
       .from('sheet_results')
       .insert({
         student_id: studentId,
         sheet_id: sheet.sheet_id,
-        total_time_spent: sheet.time_limit,
-        status: 'in_progress'
+        total_correct: 0,
+        total_wrong: 0,
+        total_time_spent: 0,
+        score: 0,
+        accuracy: 0,
+        speed_rate: 0,
+        status: 'in_progress',
+        start_time: new Date().toISOString()
       })
       .select()
       .single()
@@ -117,8 +153,12 @@ export async function startRulePractice(studentId, ruleId) {
 
     return {
       success: true,
-      data: { resultId: result.result_id, sheetId: sheet.sheet_id }
+      data: {
+        resultId: result.result_id,
+        sheetId: sheet.sheet_id
+      }
     }
+
   } catch {
     return { success: false, error: 'فشل في بدء التدريب.' }
   }
