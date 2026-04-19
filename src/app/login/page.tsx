@@ -68,10 +68,7 @@ export default async function LoginPage() {
                             <div className="text-2xl mb-2">📊</div>
                             <div className="font-bold text-orange-400">تتبع التقدم</div>
                         </div>
-                        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                            <div className="text-2xl mb-2">👥</div>
-                            <div className="font-bold text-orange-400">منافسة الأصدقاء</div>
-                        </div>
+                        
                     </div>
                 </div>
                 
