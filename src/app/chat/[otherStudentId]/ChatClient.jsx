@@ -4,8 +4,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { sendMessage, getMessagesBetweenStudents } from '../../../../actions/chat.actions';
-import { supabase } from '../../../../lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js'
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
 const ChatClient = ({ currentStudentId, currentStudentName, otherStudentId, otherStudentName }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -32,38 +36,40 @@ const ChatClient = ({ currentStudentId, currentStudentName, otherStudentId, othe
   // =====================================================
   // 🔥 REALTIME (ADDED ONLY)
   // =====================================================
-  useEffect(() => {
-    const channel = supabase
-      .channel('chat_room')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-        },
-        (payload) => {
-          console.log('NEW MESSAGE:', payload.new);
+useEffect(() => {
+  const channel = supabase
+    .channel('chat_room')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'chat_messages',
+      },
+      (payload) => {
+        const newMsg = payload.new;
 
-          const newMsg = payload.new;
+        const isRelevant =
+          (newMsg.sender_id === Number(currentStudentId) &&
+            newMsg.receiver_id === Number(otherStudentId)) ||
+          (newMsg.sender_id === Number(otherStudentId) &&
+            newMsg.receiver_id === Number(currentStudentId));
 
-          const isRelevant =
-            (newMsg.sender_id === Number(currentStudentId) &&
-              newMsg.receiver_id === Number(otherStudentId)) ||
-            (newMsg.sender_id === Number(otherStudentId) &&
-              newMsg.receiver_id === Number(currentStudentId));
-
-          if (isRelevant) {
-            setMessages((prev) => [...prev, newMsg]);
-          }
+        if (isRelevant) {
+          setMessages((prev) => {
+            const exists = prev.some(m => m.message_id === newMsg.message_id);
+            if (exists) return prev;
+            return [...prev, newMsg];
+          });
         }
-      )
-      .subscribe();
+      }
+    )
+    .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentStudentId, otherStudentId]);
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [currentStudentId, otherStudentId]);
 
   // =====================================================
   // محاكاة حالة الاتصال
