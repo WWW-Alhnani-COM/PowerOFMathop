@@ -4,23 +4,8 @@
 import { useState, useTransition, FormEvent, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Cairo } from 'next/font/google';
 
-
-const cairo = Cairo({ 
-  subsets: ['arabic'],
-  weight: ['400', '700'],
-});
-
-export default function RootLayout({ children }) {
-  return (
-    <html lang="ar" dir="rtl">
-      <body className={cairo.className}>{children}</body>
-    </html>
-  );
-}
-
-// 1. الأنواع
+// 1. الأنواع (Types)
 interface Branch {
     branch_id: number;
     branch_name: string;
@@ -28,8 +13,6 @@ interface Branch {
 
 interface LoginSuccessData {
     studentId: number;
-    message?: string;
-    [key: string]: any;
 }
 
 interface LoginFormProps {
@@ -37,7 +20,6 @@ interface LoginFormProps {
     loginAction: (name: string, branchId: number) => Promise<{ success: boolean; data?: LoginSuccessData; error?: string }>;
 }
 
-// 2. المكون العميل الرئيسي
 export default function LoginFormClient({ branches, loginAction }: LoginFormProps) {
     const router = useRouter();
     const [name, setName] = useState('');
@@ -47,46 +29,33 @@ export default function LoginFormClient({ branches, loginAction }: LoginFormProp
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredBranches, setFilteredBranches] = useState<Branch[]>(branches);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    
     const dropdownRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // فلترة الفروع عند البحث
+    // فلترة الفروع
     useEffect(() => {
-        if (searchTerm.trim() === '') {
-            setFilteredBranches(branches);
-        } else {
-            const filtered = branches.filter(branch =>
-                branch.branch_name.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-            setFilteredBranches(filtered);
-        }
+        const filtered = branches.filter(branch =>
+            branch.branch_name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        setFilteredBranches(filtered);
     }, [searchTerm, branches]);
 
-    // إغلاق القائمة عند النقر خارجها
+    // إغلاق القائمة عند النقر الخارج
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsDropdownOpen(false);
             }
         };
-
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchTerm(e.target.value);
-    };
-
-    const handleBranchSelect = (branchId: string, branchName: string) => {
-        setBranchId(branchId);
-        setSearchTerm(branchName);
+    const handleBranchSelect = (id: string, name: string) => {
+        setBranchId(id);
+        setSearchTerm(name); // لعرض الاسم المختار في حقل البحث لاحقاً
         setIsDropdownOpen(false);
-    };
-
-    const handleInputClick = () => {
-        setIsDropdownOpen(true);
-        setTimeout(() => inputRef.current?.focus(), 0);
     };
 
     const handleSubmit = (e: FormEvent) => {
@@ -102,16 +71,11 @@ export default function LoginFormClient({ branches, loginAction }: LoginFormProp
             const result = await loginAction(name, parseInt(branchId));
 
             if (result.success && result.data?.studentId) {
-                // تخزين البيانات في localStorage
-                if (typeof window !== 'undefined') {
-                    localStorage.setItem('student_id', result.data.studentId.toString());
-                    localStorage.setItem('student_name', name);
-                }
-
-                // الانتقال لصفحة dashboard
+                localStorage.setItem('student_id', result.data.studentId.toString());
+                localStorage.setItem('student_name', name);
                 router.push('/dashboard');
             } else {
-                setError(result.error || 'فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.');
+                setError(result.error || 'بيانات الدخول غير صحيحة');
             }
         });
     };
@@ -119,139 +83,88 @@ export default function LoginFormClient({ branches, loginAction }: LoginFormProp
     const selectedBranch = branches.find(b => b.branch_id.toString() === branchId);
 
     return (
-<form onSubmit={handleSubmit} className="p-6 lg:p-8 relative"> 
-{/* تأكد أنه لا يوجد هنا كلمة overflow-hidden */}
-            {/* العنوان */}
+        <form onSubmit={handleSubmit} className="p-6 lg:p-8 relative">
+            {/* الشعار */}
             <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-16 h-16  from-white-500  rounded-full mb-4">
-<div className="relative w-30 h-30 md:w-16 md:h-16 rounded-xl overflow-hidden shadow-lg group-hover:scale-105 transition-transform duration-300">
-              {/* 🔴 تأكد من وجود الصورة في المجلد الصحيح */}
-              <Image
-                src="/images/logo.png" // ← مسار مطلق من مجلد public
-                alt="Power Of Math Logo"
-                width={100}
-                height={100}
-                className="w-full h-full object-contain"
-                priority // ← لتحميل الصورة أولاً
-              />
-            </div>                </div>
-                {/* العنوان - تم إضافة font-bold وتغيير الحجم */}
-<h2 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-2 leading-tight">
-    تسجيل الدخول
-</h2>
-<p className="text-gray-600 text-sm font-medium">
-    أدخل بياناتك للبدء في رحلة التميز
-</p>
-
+                <div className="inline-flex items-center justify-center mb-4">
+                    <div className="relative w-20 h-20 rounded-2xl overflow-hidden shadow-md border-2 border-orange-100">
+                        <Image
+                            src="/images/logo.png"
+                            alt="Logo"
+                            fill
+                            className="object-contain p-2"
+                            priority
+                        />
+                    </div>
+                </div>
+                <h2 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-2">تسجيل الدخول</h2>
+                <p className="text-gray-500 text-sm">أدخل بياناتك للبدء في رحلة التميز</p>
             </div>
 
-            {/* رسالة الخطأ */}
+            {/* الأخطاء */}
             {error && (
-                <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-xl">
-                    <div className="flex items-center gap-3">
-                        <span className="text-red-500 text-xl">⚠️</span>
-                        <span className="text-red-700 font-medium">{error}</span>
-                    </div>
+                <div className="mb-6 p-4 bg-red-50 border-r-4 border-red-500 rounded-lg text-red-700 text-sm animate-pulse">
+                    ⚠️ {error}
                 </div>
             )}
 
-            {/* حقل اسم الطالب */}
-            <div className="mb-6">
-                {/* العناوين الجانبية - جعلها font-semibold */}
-<label className="block text-sm font-semibold text-gray-700 mb-3">
-    اسم الطالب
-</label>
-
-                
+            {/* حقل الاسم */}
+            <div className="mb-5">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">اسم الطالب</label>
                 <div className="relative">
                     <input
                         type="text"
-                        placeholder="أدخل اسمك هنا..."
-                        className="w-full px-4 py-3 pl-12 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+                        placeholder="أدخل اسمك الثلاثي..."
+                        className="w-full px-4 py-3 pr-11 bg-gray-50 border-2 border-gray-100 rounded-xl focus:bg-white focus:border-orange-400 transition-all outline-none"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        required
                         disabled={isPending}
                     />
-                    <div className="absolute right-100 top-3.5 text-orange-400">
-        👤
-                    </div>
+                    <span className="absolute right-4 top-3.5 text-gray-400">👤</span>
                 </div>
             </div>
 
-            {/* حقل الفرع */}
+            {/* حقل الفرع المخصص */}
             <div className="mb-8">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                    الفرع التعليمي
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">الفرع التعليمي</label>
                 <div className="relative" ref={dropdownRef}>
-                    {/* حقل البحث/العرض */}
-                    <div 
-                        className="w-full px-4 py-3 pr-12 bg-white border-2 border-gray-200 rounded-xl cursor-pointer hover:border-gray-300 transition-all"
-                        onClick={handleInputClick}
+                    <div
+                        onClick={() => !isPending && setIsDropdownOpen(!isDropdownOpen)}
+                        className={`w-full px-4 py-3 bg-gray-50 border-2 rounded-xl cursor-pointer transition-all flex justify-between items-center ${isDropdownOpen ? 'border-orange-400 bg-white' : 'border-gray-100'}`}
                     >
-                        <div className="flex items-center justify-between">
-                            <span className={selectedBranch ? "text-gray-800" : "text-gray-400"}>
-                                {selectedBranch?.branch_name || "اختر الفرع"}
-                            </span>
-                            <span className="text-gray-400">
-                                {isDropdownOpen ? "▲" : "▼"}
-                            </span>
-                        </div>
+                        <span className={selectedBranch ? "text-gray-800" : "text-gray-400"}>
+                            {selectedBranch?.branch_name || "اختر الفرع من القائمة"}
+                        </span>
+                        <span className={`transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`}>▼</span>
                     </div>
 
-                    {/* القائمة المنسدلة */}
                     {isDropdownOpen && (
-    <div className="absolute left-0 right-0 z-[999] mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
-                            {/* شريط البحث */}
-                            {/* شريط البحث داخل القائمة */}
-<div className="p-3 border-b border-gray-100">
-    <div className="relative">
-        <input
-            ref={inputRef}
-            type="text"
-            placeholder="ابحث عن فرع..."
-            className="w-full px-4 py-2 pl-10 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 text-right"
-            value={searchTerm}
-            onChange={handleSearch}
-            autoFocus
-        />
-        
-    </div>
-</div>
-
-
-                            {/* قائمة الفروع */}
-                            <div className="max-h-64 overflow-y-auto">
-                                {filteredBranches.length === 0 ? (
-                                    <div className="px-4 py-6 text-center text-gray-500">
-                                        لا توجد نتائج
-                                    </div>
-                                ) : (
+                        <div className="absolute w-full z-50 mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                            <div className="p-2 border-b border-gray-50">
+                                <input
+                                    ref={inputRef}
+                                    type="text"
+                                    placeholder="ابحث عن فرعك..."
+                                    className="w-full px-3 py-2 bg-gray-50 rounded-lg text-sm outline-none focus:ring-1 ring-orange-200"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                                {filteredBranches.length > 0 ? (
                                     filteredBranches.map((branch) => (
                                         <div
                                             key={branch.branch_id}
-                                            className={`px-4 py-3 cursor-pointer transition-all border-b border-gray-100 last:border-b-0 ${
-                                                branchId === branch.branch_id.toString()
-                                                    ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-r-4 border-blue-500'
-                                                    : 'hover:bg-gray-50'
-                                            }`}
                                             onClick={() => handleBranchSelect(branch.branch_id.toString(), branch.branch_name)}
+                                            className="px-4 py-3 hover:bg-orange-50 cursor-pointer text-sm text-gray-700 flex justify-between items-center"
                                         >
-                                            <div className="flex items-center justify-between">
-                                                <span className={`font-medium ${
-                                                    branchId === branch.branch_id.toString()
-                                                        ? 'text-blue-600'
-                                                        : 'text-gray-700'
-                                                }`}>
-                                                    {branch.branch_name}
-                                                </span>
-                                                {branchId === branch.branch_id.toString() && (
-                                                    <span className="text-blue-500">✓</span>
-                                                )}
-                                            </div>
+                                            {branch.branch_name}
+                                            {branchId === branch.branch_id.toString() && <span className="text-orange-500">✓</span>}
                                         </div>
                                     ))
+                                ) : (
+                                    <div className="p-4 text-center text-gray-400 text-xs">لا توجد فروع بهذا الاسم</div>
                                 )}
                             </div>
                         </div>
@@ -259,36 +172,29 @@ export default function LoginFormClient({ branches, loginAction }: LoginFormProp
                 </div>
             </div>
 
-            {/* زر الإرسال */}
- {/* زر الإرسال - تم تغيير اللون إلى البرتقالي المتدرج */}
-<button
-    type="submit"
-    disabled={isPending || !name || !branchId}
-    className={`w-full py-4 rounded-xl font-bold text-lg tracking-wide transition-all flex items-center justify-center gap-3 ${
-        isPending || !name || !branchId
-            ? 'bg-gray-300 cursor-not-allowed text-gray-500'
-            : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:shadow-orange-200 hover:shadow-xl hover:scale-105 shadow-lg'
-    }`}
->
-    {isPending ? (
-        <span className="font-medium">جارٍ الدخول...</span>
-    ) : (
-        <span className="text-xl">ابدأ التدريب الآن</span>
-    )}
-</button>
+            {/* زر الدخول */}
+            <button
+                type="submit"
+                disabled={isPending || !name || !branchId}
+                className="w-full py-4 bg-gradient-to-l from-orange-600 to-amber-500 text-white rounded-xl font-bold shadow-lg shadow-orange-200 hover:shadow-orange-300 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:grayscale disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                {isPending ? (
+                    <div className="flex items-center justify-center gap-2">
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>جارٍ التحقق...</span>
+                    </div>
+                ) : (
+                    "ابدأ رحلتك الآن 🚀"
+                )}
+            </button>
 
-
-
-            {/* رابط العودة */}
-            <div className="mt-6 text-center">
-                <button
-                    type="button"
-                    onClick={() => router.push('/')}
-                    className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                    ← العودة للرئيسية
-                </button>
-            </div>
+            <button
+                type="button"
+                onClick={() => router.push('/')}
+                className="w-full mt-4 text-gray-400 text-sm hover:text-gray-600 transition-colors"
+            >
+                العودة للرئيسية
+            </button>
         </form>
     );
 }
