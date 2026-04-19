@@ -95,6 +95,24 @@ const ChatListPage = () => {
     }
   }, [currentStudentId, fetchChatData]);
 
+
+  // 👇 هنا تضيفه
+useEffect(() => {
+  const handleFocus = async () => {
+    if (!currentStudentId) return;
+
+    const countResult = await getUnreadCount(currentStudentId);
+
+    if (countResult.success) {
+      setTotalUnreadCount(countResult.data);
+    }
+  };
+
+  window.addEventListener('focus', handleFocus);
+
+  return () => window.removeEventListener('focus', handleFocus);
+}, [currentStudentId]);
+
   // 💡 دالة لتوليد ألوان متدرجة
   const getAvatarColor = (name) => {
     const colors = [
