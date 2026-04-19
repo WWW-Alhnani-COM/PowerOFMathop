@@ -149,10 +149,10 @@ useEffect(() => {
   const quickReplies = ['مرحباً! 👋', 'كيف الحال؟ 😊', 'أحتاج مساعدة 🆘', 'رائع! 👍', 'شكراً لك 🙏'];
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="flex flex-col h-full bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
 
       {/* HEADER */}
-      <div className="bg-white/90 backdrop-blur-sm border-b border-gray-200 py-4 px-6 sticky top-0 z-10 shadow-sm">
+      <div className="fixed top-0 left-0 w-full bg-white/80 backdrop-blur-md border-b border-orange-200/50 py-4 px-6 z-50 shadow-lg">
         <div className="flex items-center justify-between">
 
           <div className="flex items-center gap-4">
@@ -160,7 +160,7 @@ useEffect(() => {
               <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg bg-gradient-to-r ${getAvatarColor(otherStudentName)} shadow-md`}>
                 {otherStudentName[0]?.toUpperCase() || '?'}
               </div>
-              <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${onlineStatus ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${onlineStatus ? 'bg-orange-500 shadow-[0_0_10px_rgba(255,107,53,0.6)]' : 'bg-gray-400'}`} />
             </div>
 
             <div>
@@ -183,7 +183,7 @@ useEffect(() => {
       </div>
 
       {/* MESSAGES */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 pt-24">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500">لا توجد رسائل</div>
         ) : (
@@ -193,9 +193,9 @@ useEffect(() => {
               className={`flex ${isOwnMessage(msg) ? 'justify-end' : 'justify-start'}`}
             >
               <div className={`px-4 py-3 rounded-2xl max-w-xs ${
-                isOwnMessage(msg)
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white text-gray-800'
+       isOwnMessage(msg)
+  ? 'bg-gradient-to-r from-orange-500 via-orange-600 to-yellow-400 text-white shadow-xl border border-white/20'
+  : 'bg-white/70 backdrop-blur-md text-gray-800 border border-orange-200/50 shadow-md'
               }`}>
                 <p>{msg.message_text}</p>
                 <div className="text-xs mt-1 opacity-70">
@@ -209,14 +209,14 @@ useEffect(() => {
       </div>
 
       {/* INPUT */}
-      <form onSubmit={handleSend} className="p-4 border-t flex gap-3">
+      <form onSubmit={handleSend} className="fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-md border-t border-orange-200/50 flex gap-3 p-4 z-50 shadow-lg">
         <input
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          className="flex-1 border px-3 py-2 rounded"
+          className="flex-1 px-4 py-3 rounded-2xl border border-orange-200 bg-white/80 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           placeholder="اكتب رسالة..."
         />
-        <button disabled={isSending} className="bg-blue-500 text-white px-4 rounded">
+        <button disabled={isSending} className="bg-gradient-to-r from-orange-500 to-yellow-400 text-white px-5 rounded-2xl font-bold shadow-md hover:shadow-lg transition-all">
           إرسال
         </button>
       </form>
