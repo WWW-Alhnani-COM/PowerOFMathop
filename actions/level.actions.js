@@ -5,13 +5,12 @@ import { createClient } from '@utils/supabase/server';
 const supabase = createClient();
 
 // ======================================================
-// 1. المستويات مع الإحصائيات
+// 1. المستويات مع الإحصائيات (getActiveLevelsWithStats)
 // ======================================================
 export async function getActiveLevelsWithStats(studentId = null) {
   try {
-    // المستويات
     const { data: levels } = await supabase
-      .from('level')
+      .from('levels') // تم التصحيح للجمع
       .select(`
         level_id,
         level_name,
@@ -19,47 +18,28 @@ export async function getActiveLevelsWithStats(studentId = null) {
         color,
         icon,
         level_order,
-        levelRules:level_rule(count),
-        sheets:sheet(count)
+        levelRules:level_rules(count),
+        sheets:sheets(count)
       `)
       .eq('is_active', true)
       .order('level_order', { ascending: true });
 
-    if (!levels) {
-      return { success: false, error: 'لا توجد مستويات' };
-    }
-
-    let completedByStudent = [];
-
-    // تقدم الطالب (اختياري)
-    if (studentId) {
-      const { data } = await supabase
-        .from('sheet_result')
-        .select('sheet_id')
-        .eq('student_id', Number(studentId))
-        .eq('status', 'completed');
-
-      completedByStudent = data || [];
-    }
+    if (!levels) return { success: false, error: 'لا توجد مستويات' };
 
     const levelsWithStats = await Promise.all(
       levels.map(async (level) => {
-        // عدد الطلاب في المستوى
         const { count: studentCount } = await supabase
-          .from('student')
+          .from('students') // تم التصحيح للجمع
           .select('*', { count: 'exact', head: true })
           .eq('current_level_id', level.level_id);
 
-        // عدد التمارين المكتملة للطالب داخل هذا المستوى
         let completedSheets = 0;
-
         if (studentId) {
           const { count } = await supabase
-            .from('sheet_result')
+            .from('sheet_results') // تم التصحيح للجمع
             .select('*', { count: 'exact', head: true })
             .eq('student_id', Number(studentId))
             .eq('status', 'completed');
-
           completedSheets = count || 0;
         }
 
@@ -80,18 +60,14 @@ export async function getActiveLevelsWithStats(studentId = null) {
       })
     );
 
-    return {
-      success: true,
-      data: levelsWithStats,
-      totalLevels: levels.length,
-    };
+    return { success: true, data: levelsWithStats, totalLevels: levels.length };
   } catch (error) {
     return { success: false, error: 'فشل جلب المستويات' };
   }
 }
 
 // ======================================================
-// 2. تقدم الطالب
+// 2. تقدم الطالب (getStudentProgress)
 // ======================================================
 export async function getStudentProgress(studentId) {
   const id = Number(studentId);
@@ -99,7 +75,7 @@ export async function getStudentProgress(studentId) {
 
   try {
     const { data: student } = await supabase
-      .from('student')
+      .from('students') // تم التصحيح للجمع
       .select(`
         student_name,
         total_score,
@@ -107,33 +83,27 @@ export async function getStudentProgress(studentId) {
         best_streak,
         total_correct_answers,
         total_wrong_answers,
-        level:level_id(level_name, level_order)
+        levels:current_level_id(level_name, level_order) 
       `)
       .eq('student_id', id)
       .single();
 
-    if (!student) {
-      return { success: false, error: 'الطالب غير موجود' };
-    }
+    if (!student) return { success: false, error: 'الطالب غير موجود' };
 
     const { count: totalAttempts } = await supabase
-      .from('sheet_result')
+      .from('sheet_results') // تم التصحيح للجمع
       .select('*', { count: 'exact', head: true })
       .eq('student_id', id);
 
     const { count: completedAttempts } = await supabase
-      .from('sheet_result')
+      .from('sheet_results')
       .select('*', { count: 'exact', head: true })
       .eq('student_id', id)
       .eq('status', 'completed');
 
     const accuracy =
       student.total_correct_answers + student.total_wrong_answers > 0
-        ? Math.round(
-            (student.total_correct_answers /
-              (student.total_correct_answers + student.total_wrong_answers)) *
-              100
-          )
+        ? Math.round((student.total_correct_answers / (student.total_correct_answers + student.total_wrong_answers)) * 100)
         : 0;
 
     return {
@@ -144,9 +114,7 @@ export async function getStudentProgress(studentId) {
           total_attempts: totalAttempts || 0,
           completed_attempts: completedAttempts || 0,
           accuracy,
-          completion_rate: totalAttempts
-            ? Math.round((completedAttempts / totalAttempts) * 100)
-            : 0,
+          completion_rate: totalAttempts ? Math.round((completedAttempts / totalAttempts) * 100) : 0,
         },
       },
     };
@@ -156,12 +124,12 @@ export async function getStudentProgress(studentId) {
 }
 
 // ======================================================
-// 3. المستويات (بسيط)
+// 3. المستويات البسيط (getActiveLevels)
 // ======================================================
 export async function getActiveLevels() {
   try {
     const { data } = await supabase
-      .from('level')
+      .from('levels') // تم التصحيح للجمع
       .select('level_id,level_name,description,color,icon,level_order')
       .eq('is_active', true)
       .order('level_order', { ascending: true });
@@ -173,7 +141,7 @@ export async function getActiveLevels() {
 }
 
 // ======================================================
-// 4. قواعد مستوى
+// 4. قواعد مستوى (getRulesByLevel)
 // ======================================================
 export async function getRulesByLevel(levelId) {
   const id = Number(levelId);
@@ -181,12 +149,12 @@ export async function getRulesByLevel(levelId) {
 
   try {
     const { data: level } = await supabase
-      .from('level')
+      .from('levels') // تم التصحيح للجمع
       .select(`
         level_id,
         level_name,
-        level_rule(
-          rule:rule_id(
+        level_rules( 
+          rules:rule_id(
             rule_id,
             rule_name,
             description,
@@ -198,23 +166,18 @@ export async function getRulesByLevel(levelId) {
       .eq('is_active', true)
       .single();
 
-    if (!level) {
-      return { success: false, error: 'المستوى غير موجود' };
-    }
+    if (!level) return { success: false, error: 'المستوى غير موجود' };
 
-    const rules = level.level_rule?.map((lr) => lr.rule) || [];
+    const rules = level.level_rules?.map((lr) => lr.rules) || [];
 
-    return {
-      success: true,
-      data: { level, rules },
-    };
+    return { success: true, data: { level, rules } };
   } catch {
     return { success: false, error: 'فشل جلب القواعد' };
   }
 }
 
 // ======================================================
-// 5. أوراق التمارين
+// 5. أوراق التمارين حسب القاعدة (getSheetsByRule)
 // ======================================================
 export async function getSheetsByRule(ruleId) {
   const id = Number(ruleId);
@@ -222,16 +185,14 @@ export async function getSheetsByRule(ruleId) {
 
   try {
     const { data: sheets } = await supabase
-      .from('sheet')
-      .select(
-        'sheet_id,sheet_name,total_problems,time_limit,required_score'
-      )
+      .from('sheets') // تم التصحيح للجمع
+      .select('sheet_id,sheet_name,total_problems,time_limit,required_score')
       .eq('rule_id', id)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
 
     const { data: rule } = await supabase
-      .from('rule')
+      .from('rules') // تم التصحيح للجمع
       .select('rule_name')
       .eq('rule_id', id)
       .single();
