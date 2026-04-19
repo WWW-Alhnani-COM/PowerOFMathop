@@ -363,15 +363,7 @@ export default function ChallengePage() {
           </div>
 
           {/* زر إنشاء تحد جديد */}
-          <div className="text-center mb-8">
-            <Link
-              href="/challenge/create"
-              className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold rounded-xl hover:shadow-xl hover:scale-105 transition-all shadow-lg"
-            >
-              <span className="text-xl">➕</span>
-              <span>إنشاء تحد جديد</span>
-            </Link>
-          </div>
+         
         </div>
 
         {/* محتوى التبويبات */}
