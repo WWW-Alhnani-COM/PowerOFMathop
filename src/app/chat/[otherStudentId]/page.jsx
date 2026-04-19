@@ -142,13 +142,15 @@ useEffect(() => {
   return (
     <div className="min-h-screen flex flex-col">
 
-      <Header
-        studentName={currentStudentName}
-        unreadCount={0}
-      />
+   <div className="fixed top-0 left-0 w-full z-50">
+  <Header
+    studentName={currentStudentName}
+    unreadCount={0}
+  />
+</div>
 
-      <div className="p-4 border-b">
-        <h2>محادثة مع {otherStudentName}</h2>
+<div className="pt-20 p-4 border-b">
+  <h2>محادثة مع {otherStudentName}</h2>
       </div>
 
       <ChatClient
