@@ -1,6 +1,5 @@
 // src/app/layout.tsx
 import "./globals.css";
-import { fontInter, fontFredoka } from './fonts';
 import MainLayout from '@components/layout/MainLayout';
 import { fontInter, fontFredoka, fontAmiri } from './fonts'; // أضف fontAmiri هنا
 
