@@ -1,9 +1,13 @@
-'use server'
+
+/**
+ * توليد جلسة مسائل (Practice / Sheet)
+ */'use server'
 
 import { createClient } from '../lib/supabaseServer'
 
 /**
  * توليد جلسة مسائل (Practice / Sheet)
+ * مطابق 100% لقاعدة البيانات الحالية
  */
 export async function generatePracticeSession({
   rule_id,
@@ -23,11 +27,18 @@ export async function generatePracticeSession({
     const count = total ?? (mode === 'sheet' ? 350 : 20)
 
     // =====================================================
-    // 1. جلب problem_types (مطابق لقاعدتك)
+    // 1. جلب problem_types (مطابق للجدول الحقيقي)
     // =====================================================
     const { data: problemTypes, error } = await supabase
       .from('problem_types')
-      .select('problem_type_id, template, parameters, difficulty_weight, expected_time')
+      .select(`
+        problem_type_id,
+        rule_id,
+        template,
+        parameters,
+        difficulty_weight,
+        expected_time
+      `)
       .eq('rule_id', ruleId)
       .eq('is_active', true)
 
@@ -36,12 +47,12 @@ export async function generatePracticeSession({
     if (!problemTypes || problemTypes.length === 0) {
       return {
         success: false,
-        error: 'لا توجد problem_types مفعّلة لهذه القاعدة',
+        error: 'لا توجد problem_types لهذه القاعدة',
       }
     }
 
     // =====================================================
-    // 2. تحليل أداء الطالب (performance_analytics)
+    // 2. تحليل أداء الطالب (performance_analytics مطابق 100%)
     // =====================================================
     let weaknessScore = 0
     let masteryLevel = 'beginner'
@@ -59,7 +70,7 @@ export async function generatePracticeSession({
     }
 
     // =====================================================
-    // 3. الأوزان الذكية
+    // 3. الأوزان الذكية (بدون تغيير منطقك)
     // =====================================================
     const masteryBias =
       masteryLevel === 'advanced'
@@ -100,7 +111,7 @@ export async function generatePracticeSession({
     }
 
     // =====================================================
-    // 5. توليد الأسئلة
+    // 5. توليد الأسئلة (مطابق problem_types فقط)
     // =====================================================
     const problems = []
 
@@ -139,7 +150,7 @@ export async function generatePracticeSession({
 }
 
 /* =====================================================
-   Generator Engine
+   Generator Engine (مطابق لقواعدك فقط)
 ===================================================== */
 function fallbackGenerateFromTemplate({
   template,
