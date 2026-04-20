@@ -1,8 +1,10 @@
 // src/actions/sheet.actions.js
 
 'use server';
-import { createClient } from '@utils/supabase/server';
-import { cookies } from 'next/headers';
+import { supabaseAdmin } from '../lib/supabaseAdmin'
+
+
+
 import { validateSession } from './auth.actions';
 
 function toPlain(data) {
@@ -14,8 +16,8 @@ function toPlain(data) {
 // ============================================
 export async function getSheetInfo(sheetId) {
   try {
-    const supabase = createClient(await cookies());
-    const { data: sheet, error } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: sheet, error } = await supabaseAdmin
       .from('sheets')
       .select(`*, level:levels(level_name, color, icon), rule:rules(rule_name, description, icon)`)
       .eq('sheet_id', Number(sheetId))
@@ -34,8 +36,8 @@ export async function getSheetInfo(sheetId) {
 // ============================================
 export async function getStudentSheets(studentId) {
   try {
-    const supabase = createClient(await cookies());
-    const { data: student } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: student } = await supabaseAdmin
       .from('students')
       .select('current_level_id')
       .eq('student_id', Number(studentId))
@@ -43,7 +45,7 @@ export async function getStudentSheets(studentId) {
     if (!student) {
       return { success: false, error: 'الطالب غير موجود' };
     }
-    const { data: sheets, error } = await supabase
+    const { data: sheets, error } = await supabaseAdmin
       .from('sheets')
       .select(`*, rule:rules(rule_name, icon), level:levels(level_name, color)`)
       .eq('level_id', student.current_level_id)
@@ -52,14 +54,16 @@ export async function getStudentSheets(studentId) {
     if (error) {
       return { success: false, error: error.message };
     }
-    const { data: results } = await supabase
+    const { data: results } = await supabaseAdmin
       .from('sheet_results')
       .select('*')
       .eq('student_id', Number(studentId));
     const enriched = (sheets || []).map((sheet) => {
-      const latest = (results || [])
-        .filter(r => r.sheet_id === sheet.sheet_id)
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+const sheetResults = (results || [])
+  .filter(r => r.sheet_id === sheet.sheet_id)
+  .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+const latest = sheetResults[0] || null;
       const attempts = (results || []).filter(r => r.sheet_id === sheet.sheet_id).length;
       return {
         ...sheet,
@@ -84,8 +88,8 @@ export async function getStudentSheetResults(studentId, sheetIds) {
       sheetIds = [sheetIds];
     }
 
-    const supabase = createClient(await cookies());
-    const { data: results, error } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: results, error } = await supabaseAdmin
       .from('sheet_results')
       .select('*')
       .eq('student_id', Number(studentId))
@@ -94,10 +98,6 @@ export async function getStudentSheetResults(studentId, sheetIds) {
     if (error) return { success: false, error: error.message };
     return { success: true, data: toPlain(results) };
 
-    return {
-      success: true,
-      data: toPlain(results),
-    };
   } catch (error) {
     console.error('خطأ في جلب نتائج الطالب:', error);
     return {
@@ -109,9 +109,9 @@ export async function getStudentSheetResults(studentId, sheetIds) {
 
 export async function getProblemsForSheet(sheetId) {
   try {
-    const supabase = createClient(await cookies());
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
 
-    const { data: sheet, error: sheetError } = await supabase
+    const { data: sheet, error: sheetError } = await supabaseAdmin
       .from('sheets')
       .select('sheet_id, rule_id')
       .eq('sheet_id', Number(sheetId))
@@ -121,7 +121,7 @@ export async function getProblemsForSheet(sheetId) {
       return { success: false, error: 'الورقة غير موجودة' };
     }
 
-    const { data: problemTypes, error: problemError } = await supabase
+    const { data: problemTypes, error: problemError } = await supabaseAdmin
       .from('problem_types')
       .select('*')
       .eq('rule_id', sheet.rule_id)
@@ -153,9 +153,8 @@ export async function startNewSheet({ student_id, sheet_id }) {
       };
     }
 
-    const supabase = createClient(session.cookieStore);
     // التحقق من وجود الورقة
-    const { data: sheet, error: sheetError } = await supabase
+    const { data: sheet, error: sheetError } = await supabaseAdmin
       .from('sheets')
       .select('total_problems')
       .eq('sheet_id', Number(sheet_id))
@@ -167,7 +166,7 @@ export async function startNewSheet({ student_id, sheet_id }) {
       };
     }
     // إنشاء نتيجة جديدة
-    const { data: sheetResult, error: resultError } = await supabase
+    const { data: sheetResult, error: resultError } = await supabaseAdmin
       .from('sheet_results')
       .insert({
         student_id: Number(student_id),
@@ -234,8 +233,8 @@ export async function startPracticeSession({
     }
 
     // التأكد أن القاعدة موجودة
-    const supabase = createClient(session.cookieStore);
-    const { data: rule, error: ruleError } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: rule, error: ruleError } = await supabaseAdmin
       .from('rules')
       .select('*')
       .eq('rule_id', ruleIdInt)
@@ -261,26 +260,29 @@ export async function startPracticeSession({
     }
     const sheet = sheetRes.data;
     // إنشاء SheetResult جديد للجلسة
-    const { data: sheetResult, error: sheetResultError } = await supabase
-      .from('sheet_results')
-      .insert({
-        student_id: studentIdInt,
-        sheet_id: sheet.sheet_id,
-        start_time: new Date().toISOString(),
-        status: 'in_progress',
-        total_correct: 0,
-        total_wrong: 0,
-        score: 0,
-        accuracy: 0,
-      })
-      .select()
-      .single();
-    if (sheetResultError) {
-      return { success: false, error: sheetResultError.message };
-    }
+    const { data: sheetResult, error: sheetResultError } = await supabaseAdmin
+  .from('sheet_results')
+  .insert({
+    student_id: studentIdInt,
+    sheet_id: sheet.sheet_id,
+    start_time: new Date().toISOString(),
+    status: 'in_progress',
+    total_correct: 0,
+    total_wrong: 0,
+    score: 0,
+    accuracy: 0,
+  })
+  .select()
+  .single();
+
+if (sheetResultError || !sheetResult) {
+  return { success: false, error: sheetResultError?.message || 'فشل إنشاء النتيجة' };
+}
+  
+    
 
     // جلب أنواع المسائل المرتبطة بالقاعدة
-    const { data: problemTypes, error: ptError } = await supabase
+    const { data: problemTypes, error: ptError } = await supabaseAdmin
       .from('problem_types')
       .select('*')
       .eq('rule_id', ruleIdInt)
@@ -336,7 +338,7 @@ function generateProblemFromType(problemType, index) {
   const max = Number(problemType.max_value ?? 10) || 10;
   const op = problemType.operator || problemType.operation || '+';
 
-  const a = randomInt(min, max);
+const a = randomInt(min, max);
   const b = randomInt(min, max);
 
   let question = '';
@@ -430,8 +432,8 @@ export async function submitAnswer({
       }
     }
 
-    const supabase = createClient(session.cookieStore);
-    const { error: answerError } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { error: answerError } = await supabaseAdmin
       .from('answer_details')
       .insert({
         result_id: resultIdInt,
@@ -489,8 +491,8 @@ export async function finishPracticeSession({ result_id, student_id }) {
       };
     }
 
-    const supabase = createClient(session.cookieStore);
-    const { data: sheetResult, error: sheetResultError } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+const { data: sheetResult, error: sheetResultError } = await supabaseAdmin
       .from('sheet_results')
       .select('result_id, student_id, sheet_id, start_time')
       .eq('result_id', resultIdInt)
@@ -501,7 +503,7 @@ export async function finishPracticeSession({ result_id, student_id }) {
         error: 'جلسة التدريب غير موجودة.',
       };
     }
-    const { data: answers, error: answersError } = await supabase
+    const { data: answers, error: answersError } = await supabaseAdmin
       .from('answer_details')
       .select('*')
       .eq('result_id', resultIdInt);
@@ -509,7 +511,7 @@ export async function finishPracticeSession({ result_id, student_id }) {
       return { success: false, error: answersError.message };
     }
 
-    const totalCount = answers.length;
+const totalCount = Array.isArray(answers) ? answers.length : 0;
     const correctCount = answers.filter((a) => a.is_correct).length;
 
     const score =
@@ -517,7 +519,8 @@ export async function finishPracticeSession({ result_id, student_id }) {
     const accuracy = score;
 
     let total_time = 0;
-    if (answers.length > 0 && typeof answers[0].time_spent === 'number') {
+if (Array.isArray(answers) && answers.length > 0 && typeof answers[0].time_spent === 'number')
+{
       total_time = answers.reduce(
         (sum, a) => sum + (a.time_spent || 0),
         0
@@ -528,7 +531,7 @@ export async function finishPracticeSession({ result_id, student_id }) {
       );
     }
 
-    const { data: updatedArr, error: updateError } = await supabase
+    const { data: updatedArr, error: updateError } = await supabaseAdmin
       .from('sheet_results')
       .update({
         end_time: new Date().toISOString(),
@@ -611,8 +614,8 @@ export async function saveSheetResult({
     const score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
     const accuracy = score;
 
-    const supabase = createClient(session.cookieStore);
-    const { data: updatedArr, error: updateError } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: updatedArr, error: updateError } = await supabaseAdmin
       .from('sheet_results')
       .update({
         end_time: new Date(end_time).toISOString(),
@@ -633,7 +636,7 @@ export async function saveSheetResult({
     const updatedResult = Array.isArray(updatedArr) ? updatedArr[0] : updatedArr;
 
     if (problems.length > 0) {
-      const { error: answerError } = await supabase
+      const { error: answerError } = await supabaseAdmin
         .from('answer_details')
         .insert(
           problems.map((problem) => ({
@@ -706,20 +709,23 @@ async function updateStudentStats({
   score,
 }) {
   try {
-    const supabase = createClient();
-    const { data: student, error: studentError } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: student, error: studentError } = await supabaseAdmin
       .from('students')
       .select('*')
       .eq('student_id', parseInt(student_id))
       .single();
-    if (studentError || !student) return;
+if (studentError || !student) {
+  console.error('Student not found or error:', studentError);
+  return;
+}
     let currentStreak = student.current_streak || 0;
     if (score >= 70) {
       currentStreak += 1;
     } else {
       currentStreak = 0;
     }
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from('students')
       .update({
         total_score: (student.total_score || 0) + score,
@@ -747,8 +753,8 @@ async function updatePerformanceAnalytics({
   time_spent,
 }) {
   try {
-    const supabase = createClient();
-    const { data: sheet, error: sheetError } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: sheet, error: sheetError } = await supabaseAdmin
       .from('sheets')
       .select('rule_id')
       .eq('sheet_id', parseInt(sheet_id))
@@ -756,7 +762,7 @@ async function updatePerformanceAnalytics({
     if (sheetError || !sheet || !sheet.rule_id) return;
     const ruleId = sheet.rule_id;
     const success = correct_count / total_count >= 0.7;
-    const { data: existingAnalytic, error: analyticError } = await supabase
+    const { data: existingAnalytic, error: analyticError } = await supabaseAdmin
       .from('performance_analytics')
       .select('*')
       .eq('student_id', parseInt(student_id))
@@ -766,7 +772,7 @@ async function updatePerformanceAnalytics({
       const newTotalAttempts = existingAnalytic.total_attempts + 1;
       const newCorrectAttempts =
         existingAnalytic.correct_attempts + (success ? 1 : 0);
-      await supabase
+      await supabaseAdmin
         .from('performance_analytics')
         .update({
           total_attempts: newTotalAttempts,
@@ -790,7 +796,7 @@ async function updatePerformanceAnalytics({
         .eq('student_id', parseInt(student_id))
         .eq('rule_id', ruleId);
     } else {
-      await supabase
+      await supabaseAdmin
         .from('performance_analytics')
         .insert({
           student_id: parseInt(student_id),
@@ -849,8 +855,8 @@ export async function getSheetResultDetails(resultId) {
       };
     }
 
-    const supabase = createClient(session.cookieStore);
-    const { data: result, error } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: result, error } = await supabaseAdmin
       .from('sheet_results')
       .select(`*, sheet:sheets(*, rule:rules(*), level:levels(*)), answer_details:answer_details(*)`)
       .eq('result_id', parseInt(resultId))
@@ -879,8 +885,8 @@ export async function getSheetResultDetails(resultId) {
 // ============================================
 export async function getStudentPracticeHistory(studentId, limit = 20) {
   try {
-    const supabase = createClient();
-    const { data: history, error } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: history, error } = await supabaseAdmin
       .from('sheet_results')
       .select(`*, sheet:sheets(*, rule:rules(rule_name, icon), level:levels(level_name, color))`)
       .eq('student_id', parseInt(studentId))
@@ -907,8 +913,8 @@ export async function getStudentPracticeHistory(studentId, limit = 20) {
 // ============================================
 export async function getTopSheetResults(sheetId, limit = 10) {
   try {
-    const supabase = createClient();
-    const { data: topResults, error } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: topResults, error } = await supabaseAdmin
       .from('sheet_results')
       .select('*, student:students(student_name)')
       .eq('sheet_id', parseInt(sheetId))
@@ -946,8 +952,8 @@ export async function retrySheet(resultId) {
       };
     }
 
-    const supabase = createClient(session.cookieStore);
-    const { data: oldResult, error: oldError } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: oldResult, error: oldError } = await supabaseAdmin
       .from('sheet_results')
       .select('*, sheet:sheets(*)')
       .eq('result_id', parseInt(resultId))
@@ -958,7 +964,7 @@ export async function retrySheet(resultId) {
         error: 'النتيجة الأصلية غير موجودة',
       };
     }
-    const { data: newResult, error: newError } = await supabase
+    const { data: newResult, error: newError } = await supabaseAdmin
       .from('sheet_results')
       .insert({
         student_id: oldResult.student_id,
@@ -1007,15 +1013,15 @@ export async function deleteSheetResult(resultId) {
       };
     }
 
-    const supabase = createClient(session.cookieStore);
-    const { error: answerError } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { error: answerError } = await supabaseAdmin
       .from('answer_details')
       .delete()
       .eq('result_id', parseInt(resultId));
     if (answerError) {
       return { success: false, error: answerError.message };
     }
-    const { error: resultError } = await supabase
+    const { error: resultError } = await supabaseAdmin
       .from('sheet_results')
       .delete()
       .eq('result_id', parseInt(resultId));
@@ -1049,8 +1055,8 @@ export async function exportSheetResults(studentId, format = 'json') {
       };
     }
 
-    const supabase = createClient(session.cookieStore);
-    const { data: results, error } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: results, error } = await supabaseAdmin
       .from('sheet_results')
       .select('*, sheet:sheets(*, rule:rules(*), level:levels(*)), answer_details:answer_details(*)')
       .eq('student_id', parseInt(studentId))
@@ -1083,8 +1089,8 @@ export async function exportSheetResults(studentId, format = 'json') {
 // ============================================
 export async function getSheetStatistics(sheetId) {
   try {
-    const supabase = createClient();
-    const { data: statistics, error } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: statistics, error } = await supabaseAdmin
       .from('sheet_results')
       .select('status, score, total_time_spent, accuracy')
       .eq('sheet_id', parseInt(sheetId));
@@ -1131,8 +1137,8 @@ export async function getSheetStatistics(sheetId) {
 // ============================================
 export async function getStudentProgressInRule(studentId, ruleId) {
   try {
-    const supabase = createClient();
-    const { data: progress, error } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: progress, error } = await supabaseAdmin
       .from('performance_analytics')
       .select('*')
       .eq('student_id', parseInt(studentId))
@@ -1167,8 +1173,8 @@ export async function getStudentProgressInRule(studentId, ruleId) {
 // ============================================
 export async function getStudentBestResults(studentId, limit = 5) {
   try {
-    const supabase = createClient();
-    const { data: bestResults, error } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: bestResults, error } = await supabaseAdmin
       .from('sheet_results')
       .select('*, sheet:sheets(*, rule:rules(rule_name))')
       .eq('student_id', parseInt(studentId))
@@ -1197,8 +1203,8 @@ export async function getStudentBestResults(studentId, limit = 5) {
 // ============================================
 export async function hasStudentCompletedSheet(studentId, sheetId) {
   try {
-    const supabase = createClient();
-    const { data: completedResult, error } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: completedResult, error } = await supabaseAdmin
       .from('sheet_results')
       .select('result_id, score, created_at')
       .eq('student_id', parseInt(studentId))
@@ -1226,8 +1232,8 @@ export async function hasStudentCompletedSheet(studentId, sheetId) {
 // ============================================
 export async function getSuggestedSheets(studentId, limit = 3) {
   try {
-    const supabase = createClient();
-    const { data: student, error: studentError } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: student, error: studentError } = await supabaseAdmin
       .from('students')
       .select('current_level_id')
       .eq('student_id', parseInt(studentId))
@@ -1238,7 +1244,7 @@ export async function getSuggestedSheets(studentId, limit = 3) {
         error: 'الطالب غير موجود',
       };
     }
-    const { data: weakRules, error: weakError } = await supabase
+    const { data: weakRules, error: weakError } = await supabaseAdmin
       .from('performance_analytics')
       .select('*')
       .eq('student_id', parseInt(studentId))
@@ -1251,7 +1257,7 @@ export async function getSuggestedSheets(studentId, limit = 3) {
     let suggestedSheets = [];
     if (weakRules && weakRules.length > 0) {
       for (const rule of weakRules) {
-        const { data: sheets, error: sheetError } = await supabase
+        const { data: sheets, error: sheetError } = await supabaseAdmin
           .from('sheets')
           .select('*')
           .eq('rule_id', rule.rule_id)
@@ -1280,8 +1286,8 @@ export async function getSuggestedSheets(studentId, limit = 3) {
 // ============================================
 export async function getStudentSheetsProgress(studentId, ruleId) {
   try {
-    const supabase = createClient();
-    const { data: ruleExists, error: ruleError } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: ruleExists, error: ruleError } = await supabaseAdmin
       .from('rules')
       .select('*')
       .eq('rule_id', parseInt(ruleId))
@@ -1292,7 +1298,7 @@ export async function getStudentSheetsProgress(studentId, ruleId) {
         error: 'القاعدة غير موجودة',
       };
     }
-    const { data: sheets, error: sheetsError } = await supabase
+    const { data: sheets, error: sheetsError } = await supabaseAdmin
       .from('sheets')
       .select('*, level:levels(level_name, color), rule:rules(rule_name, icon)')
       .eq('rule_id', parseInt(ruleId))
@@ -1303,7 +1309,7 @@ export async function getStudentSheetsProgress(studentId, ruleId) {
       return { success: false, error: sheetsError.message };
     }
     const sheetIds = (sheets || []).map((sheet) => sheet.sheet_id);
-    const { data: results, error: resultsError } = await supabase
+    const { data: results, error: resultsError } = await supabaseAdmin
       .from('sheet_results')
       .select('sheet_id, status, score, total_time_spent, created_at')
       .eq('student_id', parseInt(studentId))
@@ -1321,7 +1327,7 @@ export async function getStudentSheetsProgress(studentId, ruleId) {
         totalPoints += Number(result.score || 0);
       }
     });
-    const { count: problemTypeCount } = await supabase
+    const { count: problemTypeCount } = await supabaseAdmin
       .from('problem_types')
       .select('*', { count: 'exact', head: true })
       .eq('rule_id', parseInt(ruleId))
@@ -1365,8 +1371,8 @@ export async function getStudentSheetsProgress(studentId, ruleId) {
 // ============================================
 export async function createAutoSheetIfNeeded(ruleId, studentId) {
   try {
-    const supabase = createClient();
-    const { data: existingSheets, error: sheetsError } = await supabase
+    // استخدم supabaseAdmin مباشرة بدون إعادة تعريف
+    const { data: existingSheets, error: sheetsError } = await supabaseAdmin
       .from('sheets')
       .select('*')
       .eq('rule_id', parseInt(ruleId))
@@ -1376,7 +1382,7 @@ export async function createAutoSheetIfNeeded(ruleId, studentId) {
       return { success: false, error: sheetsError.message };
     }
     if (!existingSheets || existingSheets.length === 0) {
-      const { data: rule, error: ruleError } = await supabase
+      const { data: rule, error: ruleError } = await supabaseAdmin
         .from('rules')
         .select('rule_name')
         .eq('rule_id', parseInt(ruleId))
@@ -1384,7 +1390,7 @@ export async function createAutoSheetIfNeeded(ruleId, studentId) {
       if (ruleError) {
         return { success: false, error: ruleError.message };
       }
-      const { data: autoSheet, error: createError } = await supabase
+      const { data: autoSheet, error: createError } = await supabaseAdmin
         .from('sheets')
         .insert({
           sheet_name: `${rule?.rule_name || 'تدريب'} تلقائي`,
