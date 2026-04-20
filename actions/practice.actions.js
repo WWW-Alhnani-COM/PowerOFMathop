@@ -34,13 +34,14 @@ const safeParse = (value) => {
 }
 
 /**
- * submitAnswer - Supabase version (بديل Prisma)
+ * submitAnswer - مطابق لقاعدة بياناتك
  */
 export async function submitAnswer({
   result_id,
   problem,
   user_answer,
-  time_spent
+  time_spent,
+  sequence_number
 }) {
   try {
     // التحقق من الجلسة
@@ -51,18 +52,18 @@ export async function submitAnswer({
     const is_correct =
       String(user_answer) === String(problem.correct_answer)
 
-    // إدخال البيانات في Supabase
+    // إدخال البيانات في answer_details (مطابق للـ schema)
     const { data, error } = await supabase
-      .from('answer_detail')
+      .from('answer_details')
       .insert({
-        result_id: result_id,
-        problem_type_id: problem?.problem_type_id ?? null,
+        result_id: result_id, // sheet_results.result_id
+        problem_type_id: problem?.problem_type_id ?? null, // problem_types
         problem_data: safeStringify(problem),
         user_answer: String(user_answer),
         correct_answer: String(problem.correct_answer),
-        is_correct: is_correct,
         time_spent: time_spent,
-        sequence_number: problem?.sequence_number ?? null
+        is_correct: is_correct,
+        sequence_number: sequence_number
       })
       .select()
       .single()
