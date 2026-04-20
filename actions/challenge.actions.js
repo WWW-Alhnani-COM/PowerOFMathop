@@ -1,7 +1,7 @@
 'use server'
 
-import { createClient } from '../lib/supabaseServer'
-import { getSessionStudentId, validateSession } from './auth.actions'
+import { supabaseAdmin } from '../lib/supabaseAdmin'
+  import { getSessionStudentId, validateSession } from './auth.actions'
 import { v4 as uuidv4 } from 'uuid'
 
 import {
@@ -12,9 +12,6 @@ import {
 // =====================================================
 // Supabase Client
 // =====================================================
-function supabaseServer() {
-  return createClient()
-}
 
 // =====================================================
 // الثوابت
@@ -24,7 +21,7 @@ function supabaseServer() {
 // Helper: Accuracy (مطابق answer_details)
 // =====================================================
 async function calculateAccuracy(result_id) {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const { data, error } = await supabase
     .from('answer_details')
@@ -41,7 +38,7 @@ async function calculateAccuracy(result_id) {
 // Helper: Streak
 // =====================================================
 async function calculateBestStreak(student_id, isWin) {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const { data } = await supabase
     .from('students')
@@ -61,7 +58,7 @@ async function calculateBestStreak(student_id, isWin) {
 // 1. جلب تحديات الطالب (challenges)
 // =====================================================
 export async function getStudentChallenges(filter = 'all') {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const studentId = await getSessionStudentId()
   if (!studentId) return { success: false, error: 'يجب تسجيل الدخول' }
@@ -108,7 +105,7 @@ export async function getStudentChallenges(filter = 'all') {
 // 2. إنشاء تحدي (challenges + sheets)
 // =====================================================
 export async function createChallenge(params) {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const session = await validateSession()
   if (!session.success) return session
@@ -151,7 +148,7 @@ export async function createChallenge(params) {
 // 3. التحديات العامة
 // =====================================================
 export async function getPublicChallenges() {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const { data, error } = await supabase
     .from('challenges')
@@ -166,7 +163,7 @@ export async function getPublicChallenges() {
 // 4. تفاصيل التحدي
 // =====================================================
 export async function getChallengeDetails(challenge_id) {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const { data, error } = await supabase
     .from('challenges')
@@ -186,7 +183,7 @@ export async function getChallengeDetails(challenge_id) {
 // 5. الرد على التحدي
 // =====================================================
 export async function respondToChallenge(challenge_id, response) {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const status =
     response === 'accept'
@@ -211,7 +208,7 @@ export async function respondToChallenge(challenge_id, response) {
 // 6. إلغاء التحدي
 // =====================================================
 export async function cancelChallenge(challenge_id) {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const { data, error } = await supabase
     .from('challenges')
@@ -229,7 +226,7 @@ export async function cancelChallenge(challenge_id) {
 // 7. التحديات النشطة
 // =====================================================
 export async function getActiveChallenges() {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const id = await getSessionStudentId()
 
@@ -250,7 +247,7 @@ export async function getActiveChallenges() {
 // 8. أوراق التحدي
 // =====================================================
 export async function getAvailableSheetsForChallenge() {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const session = await validateSession()
   if (!session.success) return session
@@ -268,7 +265,7 @@ export async function getAvailableSheetsForChallenge() {
 // 9. بدء التحدي
 // =====================================================
 export async function startChallenge(challenge_id) {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const { data, error } = await supabase
     .from('challenges')
@@ -286,7 +283,7 @@ export async function startChallenge(challenge_id) {
 // 10. البحث عن الطلاب
 // =====================================================
 export async function searchStudentsForChallenge(query) {
-  const supabase = supabaseServer()
+    const supabase = supabaseAdmin()
 
   const session = await validateSession()
   if (!session.success) return session
@@ -306,7 +303,7 @@ export async function searchStudentsForChallenge(query) {
 // =====================================================
 export async function submitChallengeAnswer(payload) {
   try {
-    const supabase = supabaseServer()
+      const supabase = supabaseAdmin()
     const session = await validateSession()
     if (!session.success) return session
 
@@ -353,7 +350,7 @@ export async function submitChallengeAnswer(payload) {
 // =====================================================
 export async function completeChallenge(challenge_id, results) {
   try {
-    const supabase = supabaseServer()
+      const supabase = supabaseAdmin()
     const session = await validateSession()
     if (!session.success) return session
 
