@@ -1,6 +1,6 @@
 'use server'
 
-import { supabaseAdmin } from '../lib/supabaseAdmin'
+import { supabaseAdmin } from '../lib/supabaseAdmins'
   import { getSessionStudentId, validateSession } from './auth.actions'
 import { v4 as uuidv4 } from 'uuid'
 
