@@ -313,11 +313,10 @@ export default function LevelsPage() {
                   </div>
                   
                   {/* زر الدخول */}
-                  <button
-                    onClick={() => handleEnterLevel(level.level_id)}
-                    disabled={level.stats?.total_sheets === 0}
-                    className={`btn-magic w-full relative overflow-hidden ${level.stats?.total_sheets === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
+               <button
+  onClick={() => handleEnterLevel(level.level_id)}
+  className="btn-magic w-full relative overflow-hidden"
+>
                     <span className="relative z-10 flex items-center justify-center gap-3">
                       <span className="text-xl transition-transform duration-300 group-hover:scale-125">
                         {hoveredCard === level.level_id ? '🚀' : (level.stats?.total_sheets > 0 ? '➡️' : '⏳')}
@@ -325,7 +324,7 @@ export default function LevelsPage() {
                       <span className="font-black">
                         {level.stats?.total_sheets > 0 ? 
                           (hoveredCard === level.level_id ? 'انطلق!' : 'ابدأ المستوى') : 
-                          'قريباً'
+                          'ابدأ المستوى'
                         }
                       </span>
                     </span>
