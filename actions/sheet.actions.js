@@ -333,54 +333,86 @@ if (sheetResultError || !sheetResult) {
 
 // توليد مسألة واحدة من نوع مسألة
 function generateProblemFromType(problemType, index) {
-  // في الـ schema الحالي لا يوجد min/max/operator، لذلك نستخدم قيم عامة
-  const min = Number(problemType.min_value ?? 0) || 0;
-  const max = Number(problemType.max_value ?? 10) || 10;
-  const op = problemType.operator || problemType.operation || '+';
+  console.log("TYPE:", problemType);
 
-const a = randomInt(min, max);
-  const b = randomInt(min, max);
-
-  let question = '';
-  let correct = 0;
-
-  switch (op) {
-    case '-':
-      question = `${a} - ${b}`;
-      correct = a - b;
-      break;
-    case 'x':
-    case '*':
-      question = `${a} × ${b}`;
-      correct = a * b;
-      break;
-    case '÷':
-    case '/':
-      question = `${a} ÷ ${b}`;
-      correct = b !== 0 ? a / b : 0;
-      break;
-    default:
-      question = `${a} + ${b}`;
-      correct = a + b;
+  if (!problemType.template) {
+    throw new Error("Missing template in problem_type");
   }
 
-  const expectedTime = Number(problemType.expected_time ?? 20) || 20;
+ let params = {};
+
+try {
+  params =
+    typeof problemType.parameters === 'string'
+      ? JSON.parse(problemType.parameters)
+      : problemType.parameters || {};
+} catch (e) {
+  console.error("Invalid parameters JSON", e);
+  params = {};
+}
+  } catch (e) {
+    params = {};
+  }
+
+  const a = randomInt(params.a?.min ?? 0, params.a?.max ?? 10);
+  const b = randomInt(params.b?.min ?? 0, params.b?.max ?? 10);
+
+const op = problemType.operator || '+';
+if (!['+', '-', '*', '/'].includes(op)) {
+  throw new Error("Unsupported operator: " + op);
+}
+  let correct = 0;
+  let symbol = '+';
+
+  switch (op) {
+    case 'add':
+    case '+':
+      correct = a + b;
+      symbol = '+';
+      break;
+
+    case 'sub':
+    case '-':
+      correct = a - b;
+      symbol = '-';
+      break;
+
+    case 'mul':
+    case '*':
+      correct = a * b;
+      symbol = '×';
+      break;
+
+   case 'div':
+case '/':
+  if (b === 0) return generateProblemFromType(problemType, index + 1);
+  correct = Math.floor(a / b);
+  symbol = '÷';
+  break;
+      
+    default:
+      throw new Error("Unsupported operator: " + op);
+  }
+
+const question = problemType.template
+  .replaceAll('{a}', a)
+  .replaceAll('{b}', b);  
 
   return {
     problem_type_id: problemType.problem_type_id,
     question,
     correct_answer: String(correct),
     operands: { a, b, operator: op },
-    expected_time: expectedTime,
+    expected_time: problemType.expected_time || 20,
     problem_data: {
       rule_id: problemType.rule_id,
-      problem_type_id: problemType.problem_type_id,
-      operands: { a, b, operator: op },
+      template: problemType.template,
+      operator: op,
+      parameters: params,
     },
     sequence_number: index + 1,
   };
 }
-
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -512,8 +544,8 @@ const { data: sheetResult, error: sheetResultError } = await supabaseAdmin
     }
 
 const totalCount = Array.isArray(answers) ? answers.length : 0;
-    const correctCount = answers.filter((a) => a.is_correct).length;
-
+const correctCount = (answers || []).filter(a => a.is_correct).length;
+    
     const score =
       totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
     const accuracy = score;
