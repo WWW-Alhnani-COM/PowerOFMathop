@@ -16,6 +16,7 @@ const navLinks = [
   { href: '/challenge', label: 'التحديات', icon: Trophy },
   { href: '/chat', label: 'الدردشة', icon: MessageCircle },
   { href: '/reports', label: 'التقارير', icon: BarChart3 },
+  { href: '/results', label: 'النتائج', icon: BarChart3 },
 ];
 
 
