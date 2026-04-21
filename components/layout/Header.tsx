@@ -15,8 +15,8 @@ const navLinks = [
   { href: '/levels', label: 'المستويات', icon: Layers },
   { href: '/challenge', label: 'التحديات', icon: Trophy },
   { href: '/chat', label: 'الدردشة', icon: MessageCircle },
-  { href: '', label: 'التقارير', icon: BarChart3 },
-  { href: '', label: 'النتائج', icon: BarChart3 },
+ { href: '#', label: 'التقارير', icon: BarChart3, disabled: true },
+  { href: '#', label: 'النتائج', icon: BarChart3, disabled: true },
 ];
 
 
@@ -76,25 +76,35 @@ export default function Header({ studentName = 'طالب', unreadCount = 0 }) {
           
           {/* روابط التنقل للأجهزة الكبيرة */}
           <div className="hidden md:flex items-center space-x-6 space-x-reverse">
-          {navLinks.map((link) => {
+       {navLinks.map((link) => {
   const isActive = pathname.startsWith(link.href);
   const Icon = link.icon;
 
+  const isDisabled = link.disabled;
+
   return (
-    <Link
-      key={link.href}
-      href={link.href}
-      className={`
-        flex items-center gap-2 px-5 py-2.5 rounded-2xl
-        transition-all duration-300
-        ${isActive
-          ? 'bg-gradient-to-r from-orange-500 to-yellow-400 hover:shadow-[0_0_25px_rgba(255,107,53,0.6)] text-white shadow-lg'
-          : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600'}
-      `}
+    <div
+      key={link.label}
+      className={isDisabled ? 'cursor-not-allowed' : ''}
     >
-      <Icon size={18} />
-      <span className="font-medium">{link.label}</span>
-    </Link>
+      <Link
+        href={isDisabled ? '#' : link.href}
+        onClick={(e) => isDisabled && e.preventDefault()}
+        className={`
+          flex items-center gap-2 px-5 py-2.5 rounded-2xl
+          transition-all duration-300
+
+          ${isDisabled
+            ? 'opacity-40 bg-gray-100 text-gray-400 pointer-events-none'
+            : isActive
+              ? 'bg-gradient-to-r from-orange-500 to-yellow-400 text-white shadow-lg'
+              : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600'}
+        `}
+      >
+        <Icon size={18} />
+        <span className="font-medium">{link.label}</span>
+      </Link>
+    </div>
   );
 })}
           </div>
@@ -102,12 +112,12 @@ export default function Header({ studentName = 'طالب', unreadCount = 0 }) {
           {/* منطقة المستخدم */}
 <div className="flex items-center gap-3 md:gap-6">            {/* زر الدردشة */}
            <Link href="/chat" className="relative">
-  <div className="
-    w-11 h-11 md:w-12 md:h-12 rounded-2xl
-    bg-gradient-to-r from-orange-500 to-yellow-400
-    flex items-center justify-center
-    text-white shadow-md hover:scale-105 transition-all
-  ">
+<div className="
+  w-14 h-14 md:w-14 md:h-14 rounded-2xl
+  bg-gradient-to-r from-orange-500 to-yellow-400
+  flex items-center justify-center
+  text-white shadow-md hover:scale-105 transition-all
+">
     <MessageCircle size={20} />
   </div>
 
@@ -136,19 +146,17 @@ export default function Header({ studentName = 'طالب', unreadCount = 0 }) {
             </div>
 
             {/* زر القائمة المتنقلة للجوال */}
-            <button
+<button
   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
   className="
-    md:hidden p-2.5 rounded-xl
+    md:hidden p-3.5 rounded-xl
     bg-gradient-to-r from-orange-500 to-yellow-400
     text-white shadow-md
   "
 >
- 
-                {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-
-            </button>
-          </div>
+  {mobileMenuOpen ? <X size={26} /> : <Menu size={26} />}
+</button>
+</div>
         </div>
 
         {/* القائمة المتنقلة للجوال */}
