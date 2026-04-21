@@ -3,8 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../../components/layout/Header';
-import { getStudentDashboardStats } from '../../../actions/level.actions';
-
+import {
+  getStudentReport,
+  getProgressReport,
+  getErrorPatterns,
+  getAiRecommendations
+} from '../../../actions/level.actions';
 export default function ReportsPage() {
   const router = useRouter();
 
