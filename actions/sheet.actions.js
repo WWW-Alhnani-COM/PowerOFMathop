@@ -350,10 +350,7 @@ try {
   console.error("Invalid parameters JSON", e);
   params = {};
 }
-  } catch (e) {
-    params = {};
-  }
-
+ 
   const a = randomInt(params.a?.min ?? 0, params.a?.max ?? 10);
   const b = randomInt(params.b?.min ?? 0, params.b?.max ?? 10);
 
