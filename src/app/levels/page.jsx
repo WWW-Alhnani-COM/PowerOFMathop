@@ -225,205 +225,182 @@ export default function LevelsPage() {
             </div>
           </div>
         )}
+{/* شبكة المستويات */}
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+  {levels.map((level, index) => {
+    
+    // 🔒 تحديد هل المستوى مقفول
+const previousLevel = levels.find(
+  l => l.level_order === level.level_order - 1
+);
 
-        {/* شبكة المستويات */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {levels.map((level, index) => (
-            <div
-              key={level.level_id}
-              className="relative group"
-              onMouseEnter={() => setHoveredCard(level.level_id)}
-              onMouseLeave={() => setHoveredCard(null)}
-            >
-              {/* تأثير خلفي متحرك */}
-              <div 
-                className={`absolute inset-0 bg-gradient-to-r ${hoveredCard === level.level_id ? 'from-orange-400/20 to-yellow-400/20' : 'from-orange-200/10 to-yellow-200/10'} rounded-3xl blur-xl transition-all duration-500 ${
-                  hoveredCard === level.level_id ? 'scale-110 opacity-100' : 'scale-100 opacity-50'
-                }`}
-              />
-              
-              {/* البطاقة الرئيسية */}
-              <div className={`card-3d relative overflow-hidden transform-gpu transition-all duration-700 ${
-                hoveredCard === level.level_id ? 'rotate-1' : ''
-              }`}>
-                {/* شريط لوني علوي */}
+const isLocked =
+  level.level_order > 1 &&
+  (previousLevel?.stats?.progress_percentage || 0) < 100;
+
+    return (
+      <div
+        key={level.level_id}
+        className="relative group"
+        onMouseEnter={() => setHoveredCard(level.level_id)}
+        onMouseLeave={() => setHoveredCard(null)}
+      >
+        {/* تأثير خلفي متحرك */}
+        <div 
+          className={`absolute inset-0 bg-gradient-to-r ${
+            hoveredCard === level.level_id
+              ? 'from-orange-400/20 to-yellow-400/20'
+              : 'from-orange-200/10 to-yellow-200/10'
+          } rounded-3xl blur-xl transition-all duration-500 ${
+            hoveredCard === level.level_id
+              ? 'scale-110 opacity-100'
+              : 'scale-100 opacity-50'
+          }`}
+        />
+        
+        {/* البطاقة الرئيسية */}
+        <div className={`card-3d relative overflow-hidden transform-gpu transition-all duration-700 ${
+          hoveredCard === level.level_id ? 'rotate-1' : ''
+        } ${isLocked ? 'opacity-50 grayscale' : ''}`}>
+
+          {/* شريط لوني علوي */}
+          <div 
+            className="h-2 w-full mb-6 rounded-t-3xl transition-all duration-500"
+            style={{ 
+              background: level.color || 'linear-gradient(135deg, #ff6b35 0%, #ffeb3b 100%)',
+              transform: hoveredCard === level.level_id ? 'scaleX(1.1)' : 'scaleX(1)'
+            }}
+          />
+          
+          {/* محتوى البطاقة */}
+          <div className="p-6">
+
+            {/* الرقم والرمز */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full blur-md opacity-50" />
                 <div 
-                  className="h-2 w-full mb-6 rounded-t-3xl transition-all duration-500"
-                  style={{ 
-                    background: level.color || 'linear-gradient(135deg, #ff6b35 0%, #ffeb3b 100%)',
-                    transform: hoveredCard === level.level_id ? 'scaleX(1.1)' : 'scaleX(1)'
-                  }}
-                />
-                
-                {/* محتوى البطاقة */}
-                <div className="p-6">
-                  {/* الرقم والرمز */}
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full blur-md opacity-50" />
-                      <div 
-                        className="relative w-16 h-16 rounded-full flex items-center justify-center text-white font-black text-2xl shadow-lg"
-                        style={{ background: level.color || 'linear-gradient(135deg, #ff6b35 0%, #ffeb3b 100%)' }}
-                      >
-                        {level.level_order}
-                      </div>
-                    </div>
-                    <span className="text-4xl animate-bounce">
-                      {level.icon || getLevelEmoji(level.level_order)}
-                    </span>
-                  </div>
-                  
-                  {/* العنوان والوصف */}
-                  <h2 className="text-2xl font-black text-gray-800 mb-3 group-hover:text-orange-600 transition-colors duration-300">
-                    {level.level_name}
-                  </h2>
-                  <p className="text-gray-600 mb-4 line-clamp-2">
-                    {level.description || 'ابدأ رحلة التعلم الممتعة الآن!'}
-                  </p>
-                  
-                  {/* إحصائيات المستوى */}
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="bg-gray-50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-gray-500 mb-1">القواعد</p>
-                      <p className="font-bold text-blue-600">{level.stats?.total_rules || 0}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-3 text-center">
-                      <p className="text-xs text-gray-500 mb-1">التمارين</p>
-                      <p className="font-bold text-green-600">{level.stats?.total_sheets || 0}</p>
-                    </div>
-                  </div>
-                  
-                  {/* مؤشر التقدم الحقيقي */}
-                  <div className="mb-6">
-                    <div className="flex justify-between text-sm text-gray-500 mb-2">
-                      <span>تقدمك</span>
-                      <span className="font-bold text-orange-600">
-                        {level.stats?.progress_percentage || 0}%
-                      </span>
-                    </div>
-                    <div className="progress-3d">
-                      <div 
-                        className="progress-bar-glow transition-all duration-1000"
-                        style={{ width: `${level.stats?.progress_percentage || 0}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {level.stats?.student_completed_sheets || 0} من {level.stats?.total_sheets || 0} تمرين
-                    </div>
-                  </div>
-                  
-                  {/* زر الدخول */}
-               <button
-  onClick={() => handleEnterLevel(level.level_id)}
-  className="btn-magic w-full relative overflow-hidden"
->
-                    <span className="relative z-10 flex items-center justify-center gap-3">
-                      <span className="text-xl transition-transform duration-300 group-hover:scale-125">
-                        {hoveredCard === level.level_id ? '🚀' : (level.stats?.total_sheets > 0 ? '➡️' : '⏳')}
-                      </span>
-                      <span className="font-black">
-                        {level.stats?.total_sheets > 0 ? 
-                          (hoveredCard === level.level_id ? 'انطلق!' : 'ابدأ المستوى') : 
-                          'ابدأ المستوى'
-                        }
-                      </span>
-                    </span>
-                    
-                    {/* تأثير الجسيمات على hover */}
-                    {hoveredCard === level.level_id && level.stats?.total_sheets > 0 && (
-                      <div className="absolute inset-0">
-                        {[...Array(5)].map((_, i) => (
-                          <div
-                            key={i}
-                            className="absolute w-1 h-1 bg-white rounded-full animate-confetti"
-                            style={{
-                              left: `${Math.random() * 100}%`,
-                              top: `${Math.random() * 100}%`,
-                              animationDelay: `${i * 0.1}s`
-                            }}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </button>
-                  
-                  {/* معلومات إضافية */}
-                  <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between text-sm text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <span>👥</span>
-                      <span>{level.stats?.total_students || 0} طالب</span>
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span>📊</span>
-                      <span>{level.stats?.total_sheets || 0} تمرين</span>
-                    </span>
-                  </div>
+                  className="relative w-16 h-16 rounded-full flex items-center justify-center text-white font-black text-2xl shadow-lg"
+                  style={{ background: level.color || 'linear-gradient(135deg, #ff6b35 0%, #ffeb3b 100%)' }}
+                >
+                  {level.level_order}
                 </div>
-                
-                {/* زوايا زخرفية */}
-                <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-orange-400/30 rounded-tl-3xl" />
-                <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-orange-400/30 rounded-tr-3xl" />
-                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-orange-400/30 rounded-bl-3xl" />
-                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-orange-400/30 rounded-br-3xl" />
               </div>
-              
-              {/* مؤشر ترتيب */}
-              <div className="absolute -top-3 -left-3 w-8 h-8 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg">
-                #{index + 1}
+              <span className="text-4xl animate-bounce">
+                {level.icon || getLevelEmoji(level.level_order)}
+              </span>
+            </div>
+            
+            {/* العنوان */}
+            <h2 className="text-2xl font-black text-gray-800 mb-3 group-hover:text-orange-600 transition-colors duration-300">
+              {level.level_name}
+            </h2>
+
+            {/* الوصف */}
+            <p className="text-gray-600 mb-4 line-clamp-2">
+              {level.description || 'ابدأ رحلة التعلم الممتعة الآن!'}
+            </p>
+            
+            {/* الإحصائيات */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-gray-500 mb-1">القواعد</p>
+                <p className="font-bold text-blue-600">{level.stats?.total_rules || 0}</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-gray-500 mb-1">التمارين</p>
+                <p className="font-bold text-green-600">{level.stats?.total_sheets || 0}</p>
               </div>
             </div>
-          ))}
-        </div>
-
-        {/* رسالة إذا لم توجد مستويات */}
-        {levels.length === 0 && !loading && (
-          <div className="text-center py-16">
-            <div className="text-6xl mb-6">📭</div>
-            <h3 className="text-2xl font-black text-gray-800 mb-4">
-              لا توجد مستويات متاحة حالياً
-            </h3>
-            <p className="text-gray-600 mb-8 max-w-md mx-auto">
-              سيتم إضافة المستويات قريباً. تواصل مع المسؤول للمزيد من المعلومات.
-            </p>
-          </div>
-        )}
-
-        {/* رسالة توجيهية */}
-        <div className="mt-16 text-center">
-          <div className="card-glass max-w-2xl mx-auto p-8">
-            <div className="text-5xl mb-6 animate-bounce">🎯</div>
-            <h3 className="text-2xl font-black text-gray-800 mb-4">
-              نصائح للنجاح في رحلتك
-            </h3>
-            <p className="text-gray-600 mb-6">
-              ابدأ من المستوى الأول وتقدم بشكل تدريجي. كل مستوى يبني على ما سبقه.
-              لا تنسَ الممارسة اليومية لتحقيق أفضل النتائج!
-            </p>
-            <div className="flex flex-wrap gap-4 justify-center">
-              <div className="badge-glow">⚡ تعلم يومي</div>
-              <div className="badge-glow">🎮 تعلم ممتع</div>
-              <div className="badge-glow">📈 تقدم مستمر</div>
-              <div className="badge-glow">🏆 تحقيق الأهداف</div>
+            
+            {/* التقدم */}
+            <div className="mb-6">
+              <div className="flex justify-between text-sm text-gray-500 mb-2">
+                <span>تقدمك</span>
+                <span className="font-bold text-orange-600">
+                  {level.stats?.progress_percentage || 0}%
+                </span>
+              </div>
+              <div className="progress-3d">
+                <div 
+                  className="progress-bar-glow transition-all duration-1000"
+                  style={{ width: `${level.stats?.progress_percentage || 0}%` }}
+                />
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {level.stats?.student_completed_sheets || 0} من {level.stats?.total_sheets || 0} تمرين
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* فقاعات متحركة في الخلفية */}
-      <div className="absolute bottom-0 left-0 w-full overflow-hidden z-0">
-        <div className="flex justify-between">
-          {[...Array(10)].map((_, i) => (
-            <div
-              key={i}
-              className="w-32 h-32 bg-gradient-to-r from-orange-400/10 to-yellow-400/10 rounded-full animate-float"
-              style={{
-                animationDelay: `${i * 2}s`,
-                animationDuration: `${Math.random() * 10 + 15}s`
+            
+            {/* زر الدخول */}
+            <button
+              disabled={isLocked}
+              onClick={() => {
+                if (!isLocked) handleEnterLevel(level.level_id);
               }}
-            />
-          ))}
+              className={`btn-magic w-full relative overflow-hidden ${
+                isLocked ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
+            >
+              <span className="relative z-10 flex items-center justify-center gap-3">
+                <span className="text-xl">
+                  {isLocked
+                    ? '🔒'
+                    : (hoveredCard === level.level_id ? '🚀' : '➡️')}
+                </span>
+
+                <span className="font-black">
+                  {isLocked
+                    ? 'أكمل المستوى السابق'
+                    : (hoveredCard === level.level_id ? 'انطلق!' : 'ابدأ المستوى')}
+                </span>
+              </span>
+
+              {/* تأثير hover */}
+              {!isLocked && hoveredCard === level.level_id && (
+                <div className="absolute inset-0">
+                  {[...Array(5)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="absolute w-1 h-1 bg-white rounded-full animate-confetti"
+                      style={{
+                        left: `${Math.random() * 100}%`,
+                        top: `${Math.random() * 100}%`,
+                        animationDelay: `${i * 0.1}s`
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </button>
+
+            {/* معلومات إضافية */}
+            <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between text-sm text-gray-500">
+              <span className="flex items-center gap-1">
+                <span>👥</span>
+                <span>{level.stats?.total_students || 0} طالب</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span>📊</span>
+                <span>{level.stats?.total_sheets || 0} تمرين</span>
+              </span>
+            </div>
+          </div>
+
+          {/* زوايا */}
+          <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-orange-400/30 rounded-tl-3xl" />
+          <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-orange-400/30 rounded-tr-3xl" />
+          <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-orange-400/30 rounded-bl-3xl" />
+          <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-orange-400/30 rounded-br-3xl" />
+        </div>
+
+        {/* رقم */}
+        <div className="absolute -top-3 -left-3 w-8 h-8 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg">
+          #{index + 1}
         </div>
       </div>
-    </div>
+    );
+  })}
+</div>
   );
 }
