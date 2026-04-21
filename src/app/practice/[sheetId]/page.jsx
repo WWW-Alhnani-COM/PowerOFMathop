@@ -1,4 +1,3 @@
-// داخل src/app/practice/[sheetId]/page.jsx
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -22,14 +21,14 @@ export default function PracticePage() {
   const [resultId, setResultId] = useState(resultIdFromQuery ? Number(resultIdFromQuery) : null);
   const [sheetInfo, setSheetInfo] = useState(null);
 
-  const [session, setSession] = useState(null); // problems here
+  const [session, setSession] = useState(null);
   const [currentProblem, setCurrentProblem] = useState(0);
   const [inputValue, setInputValue] = useState('');
   const [timer, setTimer] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
-  // 1) تحميل الطالب
+  // تحميل الطالب
   useEffect(() => {
     const id = localStorage.getItem('student_id');
     const name = localStorage.getItem('student_name');
@@ -40,68 +39,42 @@ export default function PracticePage() {
     setStudent({ id: Number(id), name: name || 'طالب' });
   }, [router]);
 
-  // 2) بدء/تحميل جلسة Production عبر result_id
+  // بدء الجلسة
   useEffect(() => {
     if (!student.id) return;
 
     const boot = async () => {
       setLoading(true);
 
-      // إذا لا يوجد rule في الرابط، لا نقدر نبدأ
       if (!ruleIdFromQuery && !resultIdFromQuery) {
         setLoading(false);
         return;
       }
 
-      // إذا لا يوجد result_id → ابدأ Session جديدة
+      const start = await startPracticeSession({
+        student_id: student.id,
+        rule_id: Number(ruleIdFromQuery),
+        mode,
+        language: lang,
+      });
+
+      if (!start.success) {
+        alert(start.error || 'فشل بدء الجلسة');
+        setLoading(false);
+        return;
+      }
+
+      const rid = resultIdFromQuery
+        ? Number(resultIdFromQuery)
+        : start.data.result.result_id;
+
+      setResultId(rid);
+      setSheetInfo(start.data.sheet);
+      setSession(start.data.session);
+      setIsRunning(true);
+
       if (!resultIdFromQuery) {
-        const start = await startPracticeSession({
-          student_id: student.id,
-          rule_id: Number(ruleIdFromQuery),
-          mode,
-          language: lang,
-        });
-
-        if (!start.success) {
-          alert(start.error || 'فشل بدء الجلسة');
-          setLoading(false);
-          return;
-        }
-
-        const rid = start.data.result.result_id;
-        setResultId(rid);
-        setSheetInfo(start.data.sheet);
-        setSession(start.data.session);
-        setIsRunning(true);
-
-        // ✅ مهم: حط result_id في الرابط حتى لو عمل Refresh تكمل بنفس الجلسة
         router.replace(`/practice/${start.data.sheet.sheet_id}?rule=${ruleIdFromQuery}&mode=${mode}&lang=${lang}&result_id=${rid}`);
-      } else {
-        // لديك result_id جاهز (في حال refresh) — هنا أبسط حل:
-        // اعتمد على session التي يمكن توليدها من جديد (stateless) أو يمكنك عمل endpoint لجلبها إن كنت تخزنها.
-        // في هذا النظام: session تُولّد من جديد عند refresh (لكن الحفظ في DB مستمر)، وهذا مقبول إنتاجياً.
-        const start = await startPracticeSession({
-          student_id: student.id,
-          rule_id: Number(ruleIdFromQuery),
-          mode,
-          language: lang,
-        });
-
-        // ملاحظة: هذا سيعمل Result جديد. لو تريد إكمال نفس الـ result_id بدون إنشاء جديد:
-        // نضيف Action: getPracticeContext(result_id) (أقدر أكتبها لك).
-        // الآن: سنعتبر refresh يبدأ جلسة جديدة - أو امنع refresh UX.
-
-        if (!start.success) {
-          alert(start.error || 'فشل توليد الجلسة');
-          setLoading(false);
-          return;
-        }
-
-        const rid = Number(resultIdFromQuery);
-        setResultId(rid);
-        setSheetInfo(start.data.sheet);
-        setSession(start.data.session);
-        setIsRunning(true);
       }
 
       setLoading(false);
@@ -110,7 +83,7 @@ export default function PracticePage() {
     boot();
   }, [student.id, ruleIdFromQuery, resultIdFromQuery, mode, lang, router]);
 
-  // 3) Timer (عرض فقط)
+  // Timer
   useEffect(() => {
     let t;
     if (isRunning) {
@@ -119,14 +92,14 @@ export default function PracticePage() {
     return () => clearInterval(t);
   }, [isRunning]);
 
-  // 4) حفظ الإجابة فوراً في DB
+  // إرسال الإجابة
   const handleSubmit = useCallback(async () => {
     if (!session || !resultId) return;
+
     const p = session.problems[currentProblem];
     const userAns = String(inputValue).trim();
     if (!userAns) return;
 
-    const time_spent = 0; // لو تريد دقة أعلى: احسب per-question timer
     const res = await submitAnswer({
       result_id: resultId,
       student_id: student.id,
@@ -134,7 +107,7 @@ export default function PracticePage() {
       problem_data: p.problem_data,
       user_answer: userAns,
       correct_answer: p.correct_answer,
-      time_spent,
+      time_spent: 0,
       sequence_number: currentProblem + 1,
     });
 
@@ -152,12 +125,17 @@ export default function PracticePage() {
     }
   }, [session, resultId, currentProblem, inputValue, student.id]);
 
-  // 5) إنهاء الجلسة وحساب النتائج (Server)
+  // إنهاء
   const handleFinish = useCallback(async () => {
     if (!resultId) return;
+
     setIsRunning(false);
 
-    const fin = await finishPracticeSession({ result_id: resultId, student_id: student.id });
+    const fin = await finishPracticeSession({
+      result_id: resultId,
+      student_id: student.id,
+    });
+
     if (!fin.success) {
       alert(fin.error || 'فشل إنهاء الجلسة');
       return;
@@ -166,32 +144,44 @@ export default function PracticePage() {
     setShowResults(true);
   }, [resultId, student.id]);
 
+  // Loading UI
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-yellow-50">
         <Header studentName={student.name} unreadCount={0} />
-        <div className="flex-1 flex items-center justify-center">Loading...</div>
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <div className="text-5xl animate-bounce mb-4">🧠</div>
+          <h2 className="text-2xl font-bold">جارٍ تحميل الجلسة...</h2>
+        </div>
       </div>
     );
   }
 
+  // لا توجد جلسة
   if (!session) {
     return (
       <div className="min-h-screen flex flex-col">
         <Header studentName={student.name} unreadCount={0} />
-        <div className="flex-1 flex items-center justify-center">لا توجد جلسة</div>
+        <div className="flex-1 flex items-center justify-center">
+          لا توجد جلسة
+        </div>
       </div>
     );
   }
 
+  // النتائج
   if (showResults) {
     return (
-      <div className="min-h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-yellow-50">
         <Header studentName={student.name} unreadCount={0} />
         <div className="flex-1 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-xl shadow">
-            <div className="text-xl font-bold mb-2">تم حفظ النتيجة ✅</div>
-            <button className="px-4 py-2 bg-blue-500 text-white rounded" onClick={() => router.push('/levels')}>
+          <div className="card-glass p-10 text-center">
+            <div className="text-5xl mb-4">🎉</div>
+            <h2 className="text-2xl font-black mb-4">تم إنهاء الجلسة</h2>
+            <button
+              onClick={() => router.push('/levels')}
+              className="btn-magic px-6 py-3"
+            >
               العودة للمستويات
             </button>
           </div>
@@ -203,32 +193,75 @@ export default function PracticePage() {
   const problem = session.problems[currentProblem];
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 relative overflow-hidden">
+
+      {/* خلفية */}
+      <div className="absolute inset-0 z-0">
+        <div className="absolute top-20 left-10 w-64 h-64 bg-gradient-to-r from-orange-400/10 to-yellow-400/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-80 h-80 bg-gradient-to-r from-yellow-300/10 to-orange-300/10 rounded-full blur-3xl" />
+      </div>
+
       <Header studentName={student.name} unreadCount={0} />
-      <div className="p-4 max-w-2xl mx-auto w-full">
-        <div className="mb-2 text-sm text-gray-600">
-          result_id: <b>{resultId}</b> • الوقت: <b>{timer}s</b>
+
+      <div className="container mx-auto px-4 py-10 relative z-10 max-w-3xl">
+
+        {/* عنوان */}
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-black text-gradient-animated mb-4">
+            🧠 جلسة التدريب
+          </h1>
         </div>
 
-        <div className="bg-white rounded-xl shadow p-6">
-          <div className="text-2xl font-bold mb-4">{problem.question}</div>
+        {/* معلومات */}
+        <div className="card-glass p-4 mb-6 flex justify-between text-sm">
+          <span>🆔 {resultId}</span>
+          <span>⏱ {timer}s</span>
+          <span>📊 {currentProblem + 1}/{session.problems.length}</span>
+        </div>
+
+        {/* السؤال */}
+        <div className="card-3d p-8 mb-6 text-center">
+          <div className="text-3xl font-black mb-6">
+            {problem.question}
+          </div>
 
           <input
-            className="w-full border rounded p-3 mb-4"
+            className="w-full p-4 rounded-xl border text-center text-xl mb-6"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="اكتب الإجابة"
           />
 
-          <div className="flex gap-3">
-            <button className="px-4 py-2 bg-green-600 text-white rounded" onClick={handleSubmit}>
-              حفظ + التالي
+          <div className="flex gap-4">
+            <button onClick={handleSubmit} className="btn-magic flex-1">
+              {currentProblem === session.problems.length - 1 ? 'إنهاء' : 'التالي'}
             </button>
-            <button className="px-4 py-2 bg-red-600 text-white rounded" onClick={handleFinish}>
+
+            <button onClick={handleFinish} className="bg-red-500 text-white px-4 py-2 rounded-xl flex-1">
               إنهاء
             </button>
           </div>
         </div>
+
+        {/* تقدم */}
+        <div>
+          <div className="flex justify-between text-sm mb-2">
+            <span>التقدم</span>
+            <span>
+              {Math.round(((currentProblem + 1) / session.problems.length) * 100)}%
+            </span>
+          </div>
+
+          <div className="progress-3d">
+            <div
+              className="progress-bar-glow"
+              style={{
+                width: `${((currentProblem + 1) / session.problems.length) * 100}%`
+              }}
+            />
+          </div>
+        </div>
+
       </div>
     </div>
   );
