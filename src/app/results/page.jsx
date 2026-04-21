@@ -8,29 +8,31 @@ import {
   getProgressReport,
   getErrorPatterns,
   getAiRecommendations
-} from '../../../actions/level.actions';
-export default function ReportsPage() {
+} from '../../../actions/report.actions';
+
+export default function ResultsPage() {
   const router = useRouter();
 
   const [studentId, setStudentId] = useState(null);
-  const [studentData, setStudentData] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [recentResults, setRecentResults] = useState([]);
-  const [challenges, setChallenges] = useState([]);
+  const [report, setReport] = useState(null);
+  const [progress, setProgress] = useState([]);
+  const [errors, setErrors] = useState([]);
+  const [ai, setAi] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [hoveredCard, setHoveredCard] = useState(null);
 
+  // جلب الطالب من التخزين
   useEffect(() => {
     const id = localStorage.getItem('student_id');
 
     if (!id) {
-      router.push('/login?callbackUrl=/reports');
+      router.push('/login?callbackUrl=/results');
       return;
     }
 
-    setStudentId(parseInt(id));
+    setStudentId(Number(id));
   }, [router]);
 
+  // جلب البيانات
   useEffect(() => {
     if (!studentId) return;
 
@@ -38,14 +40,19 @@ export default function ReportsPage() {
       try {
         setLoading(true);
 
-        const res = await getStudentDashboardStats(studentId);
+        const [reportRes, progressRes, errorRes, aiRes] =
+          await Promise.all([
+            getStudentReport(studentId, 'month'),
+            getProgressReport(studentId),
+            getErrorPatterns(studentId),
+            getAiRecommendations(studentId)
+          ]);
 
-        if (res.success) {
-          setStudentData(res.data.student);
-          setStats(res.data.stats);
-          setRecentResults(res.data.recentResults || []);
-          setChallenges(res.data.recentChallenges || []);
-        }
+        if (reportRes.success) setReport(reportRes.data);
+        if (progressRes.success) setProgress(progressRes.data);
+        if (errorRes.success) setErrors(errorRes.data);
+        if (aiRes.success) setAi(aiRes.data);
+
       } catch (err) {
         console.error(err);
       } finally {
@@ -58,161 +65,108 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50">
+      <div className="min-h-screen flex flex-col bg-gray-50">
         <Header studentName="طالب" unreadCount={0} />
 
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-2xl font-black text-orange-600 animate-pulse">
-            جاري تحميل التقارير...
-          </div>
+          <p className="text-xl font-bold text-gray-600">
+            جاري تحميل النتائج...
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 relative overflow-hidden">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
 
-      <Header studentName={studentData?.student_name || "طالب"} unreadCount={0} />
+      <Header
+        studentName={report?.studentName || 'طالب'}
+        unreadCount={0}
+      />
 
-      <div className="container mx-auto px-4 py-8 relative z-10">
+      <div className="container mx-auto px-4 py-8">
 
         {/* العنوان */}
-        <div className="text-center mb-10">
-          <h1 className="text-5xl font-black text-gradient-animated mb-2">
-            📊 تقارير الأداء
-          </h1>
-          <p className="text-gray-600">
-            تحليل شامل لتقدمك في النظام
-          </p>
-        </div>
+        <h1 className="text-3xl font-black mb-6">
+          📊 نتائج الطالب
+        </h1>
 
-        {/* الكروت الأساسية */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+        {/* 📌 ملخص التقرير */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
 
-          <div className="card-3d p-6">
-            <p className="text-sm text-gray-500">النقاط</p>
-            <p className="text-3xl font-black text-orange-600">
-              {stats?.totalScore || 0}
+          <div className="bg-white p-4 rounded-xl shadow">
+            <p>المجموع</p>
+            <p className="text-2xl font-bold text-orange-600">
+              {report?.totalScore || 0}
             </p>
           </div>
 
-          <div className="card-3d p-6">
-            <p className="text-sm text-gray-500">الدقة</p>
-            <p className="text-3xl font-black text-green-600">
-              {stats?.completionRate || 0}%
+          <div className="bg-white p-4 rounded-xl shadow">
+            <p>الشيتات</p>
+            <p className="text-2xl font-bold text-blue-600">
+              {report?.totalSheets || 0}
             </p>
           </div>
 
-          <div className="card-3d p-6">
-            <p className="text-sm text-gray-500">الوقت الكلي</p>
-            <p className="text-3xl font-black text-blue-600">
-              {stats?.totalTimeSpent || 0}
+          <div className="bg-white p-4 rounded-xl shadow">
+            <p>متوسط الدقة</p>
+            <p className="text-2xl font-bold text-green-600">
+              {report?.avgAccuracy || 0}%
             </p>
           </div>
 
-          <div className="card-3d p-6">
-            <p className="text-sm text-gray-500">الرسائل غير المقروءة</p>
-            <p className="text-3xl font-black text-purple-600">
-              {stats?.unreadMessages || 0}
+          <div className="bg-white p-4 rounded-xl shadow">
+            <p>متوسط النقاط</p>
+            <p className="text-2xl font-bold text-purple-600">
+              {report?.avgScore || 0}
             </p>
           </div>
 
         </div>
 
-        {/* معلومات الطالب */}
-        <div className="card-glass p-6 mb-10">
-          <h2 className="text-xl font-black mb-4">👨‍🎓 معلومات الطالب</h2>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-            <div className="p-4 bg-white/50 rounded-xl">
-              <p className="text-sm text-gray-500">المستوى</p>
-              <p className="font-bold text-orange-600">
-                {studentData?.current_level_id || 1}
-              </p>
-            </div>
-
-            <div className="p-4 bg-white/50 rounded-xl">
-              <p className="text-sm text-gray-500">ستريك</p>
-              <p className="font-bold text-blue-600">
-                {stats?.currentStreak || 0}
-              </p>
-            </div>
-
-            <div className="p-4 bg-white/50 rounded-xl">
-              <p className="text-sm text-gray-500">أفضل ستريك</p>
-              <p className="font-bold text-green-600">
-                {stats?.bestStreak || 0}
-              </p>
-            </div>
-
-            <div className="p-4 bg-white/50 rounded-xl">
-              <p className="text-sm text-gray-500">المجموع</p>
-              <p className="font-bold text-purple-600">
-                {studentData?.total_score || 0}
-              </p>
-            </div>
-
-          </div>
-        </div>
-
-        {/* آخر النتائج */}
+        {/* 📌 الأخطاء */}
         <div className="mb-10">
-          <h2 className="text-2xl font-black mb-4">📄 آخر النتائج</h2>
+          <h2 className="text-xl font-bold mb-3">❌ أنماط الأخطاء</h2>
 
-          <div className="grid gap-4">
-            {recentResults.map((r, i) => (
-              <div
-                key={i}
-                className="card-3d p-4 flex justify-between items-center"
-              >
-                <div>
-                  <p className="font-bold">
-                    {r.sheet?.sheet_name || 'تمرين'}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    الدقة: {r.accuracy}%
-                  </p>
-                </div>
-
-                <div className="text-right">
-                  <p className="text-orange-600 font-black">
-                    {r.score}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {new Date(r.created_at).toLocaleDateString()}
-                  </p>
-                </div>
+          <div className="space-y-2">
+            {errors.length > 0 ? errors.map((e, i) => (
+              <div key={i} className="bg-white p-3 rounded shadow">
+                {e.ruleName} - {e.count} أخطاء
               </div>
-            ))}
+            )) : (
+              <p className="text-gray-500">لا توجد أخطاء</p>
+            )}
           </div>
         </div>
 
-        {/* التحديات */}
-        <div>
-          <h2 className="text-2xl font-black mb-4">⚔️ التحديات الأخيرة</h2>
+        {/* 📌 التوصيات */}
+        <div className="mb-10">
+          <h2 className="text-xl font-bold mb-3">🧠 توصيات الذكاء الاصطناعي</h2>
 
-          <div className="grid gap-4">
-            {challenges.map((c, i) => (
-              <div key={i} className="card-3d p-4">
-
-                <div className="flex justify-between">
-                  <p className="font-bold">
-                    {c.sheet?.sheet_name || 'تحدي'}
-                  </p>
-
-                  <span className="text-sm text-gray-500">
-                    {c.status}
-                  </span>
-                </div>
-
-                <p className="text-sm text-gray-500 mt-2">
-                  النقاط: {c.score || 0}
-                </p>
-
+          <div className="space-y-2">
+            {ai.length > 0 ? ai.map((a, i) => (
+              <div key={i} className="bg-white p-3 rounded shadow">
+                {a.reason}
               </div>
-            ))}
+            )) : (
+              <p className="text-gray-500">لا توجد توصيات</p>
+            )}
+          </div>
+        </div>
+
+        {/* 📌 التقدم */}
+        <div>
+          <h2 className="text-xl font-bold mb-3">📈 التقدم</h2>
+
+          <div className="space-y-2">
+            {progress.length > 0 ? progress.map((p, i) => (
+              <div key={i} className="bg-white p-3 rounded shadow">
+                {p.rule?.rule_name} - صعوبة: {p.weakness_score}
+              </div>
+            )) : (
+              <p className="text-gray-500">لا يوجد بيانات</p>
+            )}
           </div>
         </div>
 
