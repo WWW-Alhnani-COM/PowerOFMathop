@@ -8,11 +8,14 @@ import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { Home, Layers, Trophy, MessageCircle, Menu, X } from 'lucide-react';
 
+import { BarChart3 } from 'lucide-react';
+
 const navLinks = [
   { href: '/dashboard', label: 'الرئيسية', icon: Home },
   { href: '/levels', label: 'المستويات', icon: Layers },
   { href: '/challenge', label: 'التحديات', icon: Trophy },
   { href: '/chat', label: 'الدردشة', icon: MessageCircle },
+  { href: '/reports', label: 'التقارير', icon: BarChart3 },
 ];
 
 
