@@ -236,13 +236,7 @@ export default function LevelsPage() {
   {levels.map((level, index) => {
     
     // 🔒 تحديد هل المستوى مقفول
-const previousLevel = levels.find(
-  l => l.level_order === level.level_order - 1
-);
-
-const isLocked =
-  level.level_order > 1 &&
-  (previousLevel?.stats?.progress_percentage || 0) < 100;
+const isLocked = level.is_locked;
 
     return (
       <div
@@ -340,27 +334,22 @@ const isLocked =
             
             {/* زر الدخول */}
             <button
-              disabled={isLocked}
-              onClick={() => {
-                if (!isLocked) handleEnterLevel(level.level_id);
-              }}
+             disabled={level.is_locked}
+onClick={() => {
+  if (!level.is_locked) handleEnterLevel(level.level_id);
+}}
               className={`btn-magic w-full relative overflow-hidden ${
                 isLocked ? 'opacity-60 cursor-not-allowed' : ''
               }`}
             >
               <span className="relative z-10 flex items-center justify-center gap-3">
                 <span className="text-xl">
-                  {isLocked
-                    ? '🔒'
-                    : (hoveredCard === level.level_id ? '🚀' : '➡️')}
-                </span>
+  {isLocked ? '🔒' : (hoveredCard === level.level_id ? '🚀' : '➡️')}
+</span>
 
-                <span className="font-black">
-                  {isLocked
-                    ? 'أكمل المستوى السابق'
-                    : (hoveredCard === level.level_id ? 'انطلق!' : 'ابدأ المستوى')}
-                </span>
-              </span>
+<span className="font-black">
+  {isLocked ? 'أكمل المستوى السابق' : (hoveredCard === level.level_id ? 'انطلق!' : 'ابدأ المستوى')}
+</span>              </span>
 
               {/* تأثير hover */}
               {!isLocked && hoveredCard === level.level_id && (
