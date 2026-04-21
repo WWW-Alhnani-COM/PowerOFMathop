@@ -389,12 +389,20 @@ const Header = () => {
               ))}
               
               <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <Button variant="outline" className="flex-1" icon={User}>
-                  تسجيل الدخول
-                </Button>
-                <Button variant="gradient" className="flex-1">
-                  ابدأ مجاناً
-                </Button>
+           <Link href="/login" onClick={() => setIsMenuOpen(false)}>
+  <Button variant="outline" className="flex-1" icon={User}>
+    تسجيل الدخول
+  </Button>
+</Link>
+               <Link href="/login">
+  <Button 
+    variant="gradient" 
+    icon={Rocket}
+    iconPosition="right"
+  >
+    ابدأ مجاناً
+  </Button>
+</Link>
               </div>
             </div>
           </div>
@@ -543,14 +551,16 @@ export default function HomePage() {
               </p>
               
               <div className="flex flex-wrap gap-4">
-                <Button 
-                  size="lg" 
-                  variant="gradient"
-                  className="px-10 py-4 text-lg"
-                  icon={Rocket}
-                >
-                  ابدأ رحلة التعلم
-                </Button>
+            <Link href="/login">
+  <Button 
+    size="lg" 
+    variant="gradient"
+    className="px-10 py-4 text-lg"
+    icon={Rocket}
+  >
+    ابدأ رحلة التعلم
+  </Button>
+</Link>
                 
                 <Button 
                   variant="outline" 
@@ -738,9 +748,11 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto text-center text-white">
             <div className="inline-block mb-6">
-              <span className="font-bold text-sm uppercase tracking-wider bg-white/20 px-4 py-2 rounded-full">
-                ابدأ مجاناً اليوم
-              </span>
+         <Link href="/login">
+  <span className="font-bold text-sm uppercase tracking-wider bg-white/20 px-4 py-2 rounded-full cursor-pointer hover:bg-white/30 transition">
+    ابدأ مجاناً اليوم
+  </span>
+</Link>
             </div>
             
             <h2 className="text-4xl lg:text-6xl font-black mb-6">
