@@ -8,22 +8,13 @@ import { validateSession } from './auth.actions'
  */
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
 /**
- * Safe helpers
- */
-const safeParse = (v) => {
-  try {
-    return v ? JSON.parse(v) : null
-  } catch {
-    return v
-  }
-}
-
-/**
+ * =========================
  * 1. تقرير الطالب الشامل
+ * =========================
  */
 export async function getStudentReport(studentId, period = 'month') {
   try {
@@ -41,43 +32,49 @@ export async function getStudentReport(studentId, period = 'month') {
       startDate = new Date(0)
     }
 
-    // جلب الطالب
+    // 👤 الطالب
     const { data: student, error: studentError } = await supabase
-      .from('student')
-      .select('student_name, total_score, current_level_id')
+      .from('students')
+      .select('student_id, student_name, total_score, current_level_id')
       .eq('student_id', studentId)
       .single()
 
     if (studentError || !student) {
-      return { success: false, error: 'الطالب غير موجود.' }
+      return { success: false, error: 'الطالب غير موجود' }
     }
 
-    // جلب نتائج الشيتات
-    const { data: sheetResults, error: sheetError } = await supabase
-      .from('sheet_result')
-      .select('score, total_correct, total_wrong, total_time_spent')
+    // 📄 نتائج الشيتات
+    const { data: results, error: resultsError } = await supabase
+      .from('sheet_results')
+      .select(`
+        score,
+        total_correct,
+        total_wrong,
+        total_time_spent,
+        created_at
+      `)
       .eq('student_id', studentId)
       .eq('status', 'completed')
       .gte('created_at', startDate.toISOString())
 
-    if (sheetError) {
-      return { success: false, error: sheetError.message }
+    if (resultsError) {
+      return { success: false, error: resultsError.message }
     }
 
-    const totalSheets = sheetResults?.length || 0
+    const totalSheets = results?.length || 0
 
     const avgScore =
       totalSheets > 0
-        ? sheetResults.reduce((s, r) => s + (r.score || 0), 0) / totalSheets
+        ? results.reduce((sum, r) => sum + (r.score || 0), 0) / totalSheets
         : 0
 
-    const totalCorrect = sheetResults.reduce(
-      (s, r) => s + (r.total_correct || 0),
+    const totalCorrect = results.reduce(
+      (sum, r) => sum + (r.total_correct || 0),
       0
     )
 
-    const totalWrong = sheetResults.reduce(
-      (s, r) => s + (r.total_wrong || 0),
+    const totalWrong = results.reduce(
+      (sum, r) => sum + (r.total_wrong || 0),
       0
     )
 
@@ -98,178 +95,191 @@ export async function getStudentReport(studentId, period = 'month') {
       }
     }
   } catch (error) {
-    return { success: false, error: 'فشل في جلب تقرير الطالب.' }
+    return { success: false, error: 'فشل في جلب تقرير الطالب' }
   }
 }
 
 /**
- * 2. تقرير التقدم
+ * =========================
+ * 2. تقرير الأداء (Performance Analytics)
+ * =========================
  */
 export async function getProgressReport(studentId) {
   try {
     const { data, error } = await supabase
-      .from('performance_analytic')
+      .from('performance_analytics')
       .select(`
-        *,
-        rule:rule(rule_id, rule_name)
+        analysis_id,
+        student_id,
+        rule_id,
+        total_attempts,
+        correct_attempts,
+        average_time,
+        weakness_score,
+        improvement_rate,
+        mastery_level,
+        last_practiced,
+        rule:rules(rule_id, rule_name)
       `)
       .eq('student_id', studentId)
-      .order('mastery_level', { ascending: true })
+      .order('weakness_score', { ascending: false })
 
-    if (error) throw error
+    if (error) {
+      return { success: false, error: error.message }
+    }
 
     return { success: true, data }
   } catch (error) {
-    return { success: false, error: 'فشل في جلب تقرير التقدم.' }
+    return { success: false, error: 'فشل في جلب تقرير التقدم' }
   }
 }
 
 /**
+ * =========================
  * 3. أنماط الأخطاء
+ * =========================
  */
 export async function getErrorPatterns(studentId) {
   try {
     const { data, error } = await supabase
-      .from('answer_detail')
+      .from('answer_details')
       .select(`
         is_correct,
         user_answer,
-        sheet_result!inner(student_id),
-        problemType:problem_type(
+        sheet_results!inner(student_id),
+        problem_types(
           rule_id,
-          rule:rule(rule_name)
+          rule:rules(rule_name)
         )
       `)
-      .eq('sheet_result.student_id', studentId)
+      .eq('sheet_results.student_id', studentId)
       .eq('is_correct', false)
       .neq('user_answer', 'SKIPPED')
 
-    if (error) throw error
+    if (error) {
+      return { success: false, error: error.message }
+    }
 
-    const errorCounts = {}
+    const map = {}
 
-    data.forEach((d) => {
-      const ruleId = d.problemType?.rule_id
-      const ruleName = d.problemType?.rule?.rule_name
+    data.forEach((item) => {
+      const ruleId = item.problem_types?.rule_id
+      const ruleName = item.problem_types?.rule?.rule_name
 
       if (!ruleId) return
 
-      if (!errorCounts[ruleId]) {
-        errorCounts[ruleId] = {
+      if (!map[ruleId]) {
+        map[ruleId] = {
+          ruleId,
           ruleName,
           count: 0
         }
       }
 
-      errorCounts[ruleId].count++
+      map[ruleId].count++
     })
 
-    const result = Object.values(errorCounts).sort(
-      (a, b) => b.count - a.count
-    )
-
-    return { success: true, data: result }
+    return {
+      success: true,
+      data: Object.values(map).sort((a, b) => b.count - a.count)
+    }
   } catch (error) {
-    return { success: false, error: 'فشل في جلب أنماط الأخطاء.' }
+    return { success: false, error: 'فشل في تحليل الأخطاء' }
   }
 }
 
 /**
+ * =========================
  * 4. توصيات الذكاء الاصطناعي
+ * =========================
  */
 export async function getAiRecommendations(studentId) {
   try {
     const { data, error } = await supabase
-      .from('ai_suggestion')
+      .from('ai_suggestions')
       .select(`
-        *,
-        suggestedRule:rule(rule_name),
-        suggestedLevel:level(level_name)
+        suggestion_id,
+        student_id,
+        suggested_rule_id,
+        suggested_level_id,
+        reason,
+        confidence_score,
+        priority,
+        is_applied,
+        created_at,
+        applied_at,
+        suggestedRule:rules(rule_name),
+        suggestedLevel:levels(level_name)
       `)
       .eq('student_id', studentId)
-      .order('is_applied', { ascending: true })
       .order('priority', { ascending: false })
       .order('created_at', { ascending: false })
 
-    if (error) throw error
+    if (error) {
+      return { success: false, error: error.message }
+    }
 
     return { success: true, data }
   } catch (error) {
-    return {
-      success: false,
-      error: 'فشل في جلب توصيات الذكاء الاصطناعي.'
-    }
+    return { success: false, error: 'فشل في جلب التوصيات' }
   }
 }
 
 /**
- * 5. تعليقات المشرفين (Mock أو جدول اختياري)
+ * =========================
+ * 5. تعليقات المشرف (Mock)
+ * =========================
+ * (لأن الجدول غير موجود في قاعدة بياناتك)
  */
 export async function getSupervisorComments(studentId) {
-  try {
-    const { data, error } = await supabase
-      .from('supervisor_comment')
-      .select('*')
-      .eq('student_id', studentId)
-
-    if (error) {
-      return {
-        success: true,
-        data: [
-          {
-            id: 1,
-            text: 'تقدم ممتاز في القواعد الأساسية.',
-            date: new Date()
-          },
-          {
-            id: 2,
-            text: 'تحسن في السرعة يحتاج تعزيز.',
-            date: new Date()
-          }
-        ]
+  return {
+    success: true,
+    data: [
+      {
+        id: 1,
+        student_id: studentId,
+        text: 'تقدم ممتاز في القواعد الأساسية',
+        created_at: new Date()
+      },
+      {
+        id: 2,
+        student_id: studentId,
+        text: 'يحتاج تحسين في السرعة',
+        created_at: new Date()
       }
-    }
-
-    return { success: true, data }
-  } catch (error) {
-    return {
-      success: false,
-      error: 'فشل في جلب تعليقات المشرفين.'
-    }
+    ]
   }
 }
 
 /**
- * 6. تقرير دوري شامل
+ * =========================
+ * 6. تقرير شامل (Dashboard)
+ * =========================
  */
-export async function generatePeriodicReport(studentId, periodType) {
+export async function generatePeriodicReport(studentId, periodType = 'monthly') {
   try {
-    const reportPeriod =
-      periodType === 'quarterly'
-        ? 'month'
-        : periodType === 'biannual'
-          ? 'month'
-          : 'month'
-
-    const [report, progress, errors] = await Promise.all([
-      getStudentReport(studentId, reportPeriod),
+    const [report, progress, errors, ai] = await Promise.all([
+      getStudentReport(studentId, periodType === 'weekly' ? 'week' : 'month'),
       getProgressReport(studentId),
-      getErrorPatterns(studentId)
+      getErrorPatterns(studentId),
+      getAiRecommendations(studentId)
     ])
 
-    const comprehensiveReport = {
-      summary: report.data,
-      detailedProgress: progress.data,
-      topErrorPatterns: errors.data,
-      generationDate: new Date().toISOString(),
-      periodType
+    return {
+      success: true,
+      data: {
+        summary: report.data,
+        progress: progress.data,
+        errorPatterns: errors.data,
+        aiRecommendations: ai.data,
+        generatedAt: new Date().toISOString(),
+        periodType
+      }
     }
-
-    return { success: true, data: comprehensiveReport }
   } catch (error) {
     return {
       success: false,
-      error: 'فشل في توليد التقرير الدوري.'
+      error: 'فشل في توليد التقرير الشامل'
     }
   }
 }
