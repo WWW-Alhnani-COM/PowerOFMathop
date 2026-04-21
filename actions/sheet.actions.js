@@ -6,6 +6,7 @@ import { supabaseAdmin } from '../lib/supabaseAdmin'
 
 
 import { validateSession } from './auth.actions';
+import { generateByRule } from '../lib/generator/ruleEngine'
 
 function toPlain(data) {
   return data == null ? data : JSON.parse(JSON.stringify(data));
@@ -298,13 +299,23 @@ if (sheetResultError || !sheetResult) {
       };
     }
 
-    const totalProblems = sheet.total_problems || 20;
-    const problems = [];
+const totalProblems = sheet.total_problems || 20;
 
-    for (let i = 0; i < totalProblems; i++) {
-      const type = problemTypes[i % problemTypes.length];
-      problems.push(generateProblemFromType(type, i));
-    }
+const sessionData = await generateByRule({
+  rule_id: ruleIdInt,
+  student_id: studentIdInt,
+  sheet_id: sheet.sheet_id,
+  count: totalProblems,
+  language,
+  mode,
+});
+    if (!sessionData?.success || !sessionData.problems) {
+  return {
+    success: false,
+    error: sessionData?.error || 'فشل توليد المسائل من ruleEngine',
+  };
+}
+    const problems = sessionData.problems;
 
     const safeResult = toPlain(sheetResult);
     const safeSheet = toPlain(sheet);
@@ -332,87 +343,87 @@ if (sheetResultError || !sheetResult) {
 }
 
 // توليد مسألة واحدة من نوع مسألة
-function generateProblemFromType(problemType, index) {
-  console.log("TYPE:", problemType);
+// function generateProblemFromType(problemType, index) {
+//   console.log("TYPE:", problemType);
 
-  if (!problemType.template) {
-    throw new Error("Missing template in problem_type");
-  }
+//   if (!problemType.template) {
+//     throw new Error("Missing template in problem_type");
+//   }
 
- let params = {};
+//  let params = {};
 
-try {
-  params =
-    typeof problemType.parameters === 'string'
-      ? JSON.parse(problemType.parameters)
-      : problemType.parameters || {};
-} catch (e) {
-  console.error("Invalid parameters JSON", e);
-  params = {};
-}
+// try {
+//   params =
+//     typeof problemType.parameters === 'string'
+//       ? JSON.parse(problemType.parameters)
+//       : problemType.parameters || {};
+// } catch (e) {
+//   console.error("Invalid parameters JSON", e);
+//   params = {};
+// }
  
-  const a = randomInt(params.a?.min ?? 0, params.a?.max ?? 10);
-  const b = randomInt(params.b?.min ?? 0, params.b?.max ?? 10);
+//   const a = randomInt(params.a?.min ?? 0, params.a?.max ?? 10);
+//   const b = randomInt(params.b?.min ?? 0, params.b?.max ?? 10);
 
-const op = problemType.operator || '+';
-if (!['+', '-', '*', '/'].includes(op)) {
-  throw new Error("Unsupported operator: " + op);
-}
-  let correct = 0;
-  let symbol = '+';
+// const op = problemType.operator || '+';
+// if (!['+', '-', '*', '/'].includes(op)) {
+//   throw new Error("Unsupported operator: " + op);
+// }
+//   let correct = 0;
+//   let symbol = '+';
 
-  switch (op) {
-    case 'add':
-    case '+':
-      correct = a + b;
-      symbol = '+';
-      break;
+//   switch (op) {
+//     case 'add':
+//     case '+':
+//       correct = a + b;
+//       symbol = '+';
+//       break;
 
-    case 'sub':
-    case '-':
-      correct = a - b;
-      symbol = '-';
-      break;
+//     case 'sub':
+//     case '-':
+//       correct = a - b;
+//       symbol = '-';
+//       break;
 
-    case 'mul':
-    case '*':
-      correct = a * b;
-      symbol = '×';
-      break;
+//     case 'mul':
+//     case '*':
+//       correct = a * b;
+//       symbol = '×';
+//       break;
 
-   case 'div':
-case '/':
-  if (b === 0) return generateProblemFromType(problemType, index + 1);
-  correct = Math.floor(a / b);
-  symbol = '÷';
-  break;
+//    case 'div':
+// case '/':
+//   if (b === 0) return generateProblemFromType(problemType, index + 1);
+//   correct = Math.floor(a / b);
+//   symbol = '÷';
+//   break;
       
-    default:
-      throw new Error("Unsupported operator: " + op);
-  }
+//     default:
+//       throw new Error("Unsupported operator: " + op);
+//   }
 
-const question = problemType.template
-  .replaceAll('{a}', a)
-  .replaceAll('{b}', b);  
+// const question = problemType.template
+//   .replaceAll('{a}', a)
+//   .replaceAll('{b}', b);  
 
-  return {
-    problem_type_id: problemType.problem_type_id,
-    question,
-    correct_answer: String(correct),
-    operands: { a, b, operator: op },
-    expected_time: problemType.expected_time || 20,
-    problem_data: {
-      rule_id: problemType.rule_id,
-      template: problemType.template,
-      operator: op,
-      parameters: params,
-    },
-    sequence_number: index + 1,
-  };
-}
-function randomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+//   return {
+//     problem_type_id: problemType.problem_type_id,
+//     question,
+//     correct_answer: String(correct),
+//     operands: { a, b, operator: op },
+//     expected_time: problemType.expected_time || 20,
+//     problem_data: {
+//       rule_id: problemType.rule_id,
+//       template: problemType.template,
+//       operator: op,
+//       parameters: params,
+//     },
+//     sequence_number: index + 1,
+//   };
+// }
+// function randomInt(min, max) {
+//   return Math.floor(Math.random() * (max - min + 1)) + min;
+// }
 
 // ============================================
 // حفظ إجابة سؤال واحد
