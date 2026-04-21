@@ -8,7 +8,7 @@ import {
   getProgressReport,
   getErrorPatterns,
   getAiRecommendations
-} from '../../../../actions/report.actions'
+} from '../../../actions/report.actions'
 
 export default function ReportsPage() {
   const router = useRouter()
