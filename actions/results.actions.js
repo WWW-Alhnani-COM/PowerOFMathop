@@ -95,7 +95,7 @@ export async function getPerformanceAnalysis(studentId, resultId) {
     const { data: wrongAnswers, error } = await supabase
       .from('answer_details')
       .select(`
-        problemType:problem_types(
+        problem_type:problem_types(
           rule_id,
           rule:rules(rule_name)
         )
@@ -107,19 +107,20 @@ export async function getPerformanceAnalysis(studentId, resultId) {
 
     const errorsByRule = {}
 
-    wrongAnswers.forEach(d => {
-      const ruleId = d.problemType.rule_id
-      const ruleName = d.problemType.rule.rule_name
+    ;(wrongAnswers || []).forEach(d => {
+      if (!d.problem_type) return
+
+      const ruleId = d.problem_type.rule_id
+      const ruleName = d.problem_type.rule?.rule_name || 'غير معروف'
 
       if (!errorsByRule[ruleId]) {
         errorsByRule[ruleId] = { ruleName, count: 0 }
       }
+
       errorsByRule[ruleId].count++
     })
 
-    const ruleIds = Object.keys(errorsByRule)
-
-    for (const ruleId of ruleIds) {
+    for (const ruleId of Object.keys(errorsByRule)) {
       const item = errorsByRule[ruleId]
 
       const { data: existing } = await supabase
@@ -136,7 +137,7 @@ export async function getPerformanceAnalysis(studentId, resultId) {
             total_attempts: existing.total_attempts + item.count,
             weakness_score: existing.weakness_score + item.count * 0.5
           })
-          .eq('id', existing.id)
+          .eq('analysis_id', existing.analysis_id)
       } else {
         await supabase.from('performance_analytics').insert({
           student_id: studentId,
@@ -148,11 +149,11 @@ export async function getPerformanceAnalysis(studentId, resultId) {
     }
 
     return { success: true, data: errorsByRule }
-  } catch {
+
+  } catch (error) {
     return { success: false, error: 'فشل في تحليل الأداء.' }
   }
 }
-
 export async function getRecommendations(studentId) {
   try {
     const { data: weakRules } = await supabase
@@ -168,7 +169,7 @@ export async function getRecommendations(studentId) {
       .order('weakness_score', { ascending: false })
       .limit(3)
 
-    const suggestions = weakRules.map(w => ({
+const suggestions = (weakRules || []).map(w => ({
       ruleId: w.rule_id,
       ruleName: w.rule.rule_name,
       reason: `ضعف في ${w.rule.rule_name} (${w.weakness_score})`,
@@ -176,12 +177,12 @@ export async function getRecommendations(studentId) {
     }))
 
     for (const s of suggestions) {
-      await supabase.from('ai_suggestions').insert({
-        student_id: studentId,
-        suggested_rule_id: s.ruleId,
-        reason: s.reason,
-        priority: s.priority
-      })
+     await supabase.from('ai_suggestions').upsert({
+  student_id: studentId,
+  suggested_rule_id: s.ruleId,
+  reason: s.reason,
+  priority: s.priority
+})
     }
 
     return { success: true, data: suggestions }
