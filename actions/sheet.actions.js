@@ -300,22 +300,21 @@ if (sheetResultError || !sheetResult) {
     }
 
 const totalProblems = sheet.total_problems || 20;
-
 const sessionData = await generateByRule({
   rule_id: ruleIdInt,
-  student_id: studentIdInt,
-  sheet_id: sheet.sheet_id,
   count: totalProblems,
   language,
   mode,
 });
-    if (!sessionData?.success || !sessionData.problems) {
+
+if (!sessionData?.success || !sessionData?.data?.problems) {
   return {
     success: false,
     error: sessionData?.error || 'فشل توليد المسائل من ruleEngine',
   };
 }
-    const problems = sessionData.problems;
+
+const problems = sessionData.data.problems;
 
     const safeResult = toPlain(sheetResult);
     const safeSheet = toPlain(sheet);
