@@ -15,8 +15,8 @@ const navLinks = [
   { href: '/levels', label: 'المستويات', icon: Layers },
   { href: '/challenge', label: 'التحديات', icon: Trophy },
   { href: '/chat', label: 'الدردشة', icon: MessageCircle },
-  { href: '/reports', label: 'التقارير', icon: BarChart3 },
-  { href: '/results', label: 'النتائج', icon: BarChart3 },
+  { href: '/', label: 'التقارير', icon: BarChart3 },
+  { href: '/', label: 'النتائج', icon: BarChart3 },
 ];
 
 
