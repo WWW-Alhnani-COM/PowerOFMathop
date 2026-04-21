@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
+import { generateByRule } from '../lib/generator/ruleEngine'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -69,22 +70,24 @@ export async function getRuleDetails(ruleId) {
 
 export async function getRuleExamples(ruleId) {
   try {
-    const { data, error } = await supabase
-      .from('problem_types')
-      .select('template, parameters, difficulty_weight, expected_time')
-      .eq('rule_id', ruleId)
-      .eq('is_active', true)
-      .limit(3)
+    const result = await generateByRule({
+      rule_id: ruleId,
+      count: 5,
+      language: 'ar'
+    })
 
-    if (error) throw error
+    return {
+      success: true,
+      data: result.problems
+    }
 
-    return { success: true, data }
-
-  } catch {
-    return { success: false, error: 'فشل في جلب الأمثلة.' }
+  } catch (error) {
+    return {
+      success: false,
+      error: 'فشل في توليد أمثلة القاعدة.'
+    }
   }
 }
-
 // ***************************************************************
 // 4. الشيتات المتاحة (مطابقة sheets)
 // ***************************************************************
